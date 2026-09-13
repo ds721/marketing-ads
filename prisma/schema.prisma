@@ -1,0 +1,724 @@
+// Markit — multi-tenant AI marketing platform.
+// Every tenant-owned model carries tenantId + an index on it.
+// Isolation is enforced in the service layer (src/server/tenant.ts);
+// no query may touch a tenant-owned table without a tenantId filter.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+// ─────────────────────────── auth & users ───────────────────────────
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String?
+  passwordHash    String?
+  emailVerified   DateTime?
+  image           String?
+  isPlatformAdmin Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  accounts    Account[]
+  sessions    Session[]
+  memberships TenantUser[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  purpose    String   @default("verify_email") // verify_email | reset_password
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─────────────────────────── tenancy ───────────────────────────
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum TenantRole {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+model Tenant {
+  id        String       @id @default(cuid())
+  slug      String       @unique
+  name      String
+  status    TenantStatus @default(ACTIVE)
+  planId    String       @default("starter")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  members          TenantUser[]
+  businessProfile  BusinessProfile?
+  brandSettings    BrandSettings?
+  automation       AutomationSettings?
+  products         Product[]
+  offers           Offer[]
+  audiences        Audience[]
+  goals            MarketingGoal[]
+  strategies       MarketingStrategy[]
+  campaigns        Campaign[]
+  contentItems     ContentItem[]
+  ideas            Idea[]
+  assets           Asset[]
+  socialAccounts   SocialAccount[]
+  socialPosts      SocialPost[]
+  analytics        AnalyticsSnapshot[]
+  insights         AiInsight[]
+  notifications    Notification[]
+  subscription     Subscription?
+  usageRecords     UsageRecord[]
+  auditLogs        AuditLog[]
+  jobs             Job[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("tenants")
+}
+
+model TenantUser {
+  id        String     @id @default(cuid())
+  tenantId  String
+  userId    String
+  role      TenantRole @default(VIEWER)
+  createdAt DateTime   @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+  @@index([tenantId])
+  @@map("tenant_users")
+}
+
+// ─────────────────────────── business knowledge ───────────────────────────
+
+model BusinessProfile {
+  id               String   @id @default(cuid())
+  tenantId         String   @unique
+  category         String?
+  aboutRaw         String? // owner's own words
+  structured       Json? // AI-extracted structured knowledge
+  city             String?
+  region           String?
+  country          String?  @default("IN")
+  website          String?
+  phone            String?
+  email            String?
+  address          String?
+  openingHours     Json?
+  postingFrequency String?  @default("3_per_week") // daily | 3_per_week | weekly | custom
+  onboardedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("business_profiles")
+}
+
+model BrandSettings {
+  id               String   @id @default(cuid())
+  tenantId         String   @unique
+  logoAssetId      String?
+  primaryColor     String?  @default("#D6367B")
+  secondaryColor   String?  @default("#2E2447")
+  accentColor      String?  @default("#F5A31C")
+  fontPreference   String?
+  visualStyle      String?
+  toneOfVoice      String?
+  brandDescription String?
+  wordsToUse       String[] @default([])
+  wordsToAvoid     String[] @default([])
+  ctaPreference    String?
+  heroImageAssetId String?
+  socialLinks      Json?
+  publicSiteEnabled Boolean @default(true)
+  seoTitle         String?
+  seoDescription   String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("brand_settings")
+}
+
+enum ProductKind {
+  PRODUCT
+  SERVICE
+}
+
+model Product {
+  id           String      @id @default(cuid())
+  tenantId     String
+  kind         ProductKind @default(PRODUCT)
+  name         String
+  description  String?
+  price        Decimal?    @db.Decimal(12, 2)
+  currency     String      @default("INR")
+  category     String?
+  imageAssetId String?
+  isAvailable  Boolean     @default(true)
+  isPromoted   Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@map("products")
+}
+
+enum OfferStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  ARCHIVED
+}
+
+model Offer {
+  id          String      @id @default(cuid())
+  tenantId    String
+  title       String
+  description String?
+  price       Decimal?    @db.Decimal(12, 2)
+  currency    String      @default("INR")
+  discountPct Int?
+  startsAt    DateTime?
+  endsAt      DateTime?
+  status      OfferStatus @default(ACTIVE)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("offers")
+}
+
+model Audience {
+  id           String   @id @default(cuid())
+  tenantId     String
+  description  String
+  location     String?
+  ageRange     String?
+  interests    String[] @default([])
+  customerType String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("audiences")
+}
+
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  ARCHIVED
+}
+
+model MarketingGoal {
+  id           String     @id @default(cuid())
+  tenantId     String
+  label        String // "Increase bookings"
+  metric       String? // bookings | sales | leads | followers | traffic
+  targetNumber Int?
+  currentNumber Int       @default(0)
+  month        String? // "2026-09"
+  status       GoalStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("marketing_goals")
+}
+
+// ─────────────────────────── marketing engine ───────────────────────────
+
+enum StrategyStatus {
+  PROPOSED
+  ACTIVE
+  ARCHIVED
+}
+
+model MarketingStrategy {
+  id            String         @id @default(cuid())
+  tenantId      String
+  month         String // "2026-09"
+  summary       String
+  focus         String?
+  weeks         Json // [{week, theme, items:[{day, contentType, topic, platform}]}]
+  status        StrategyStatus @default(PROPOSED)
+  generatedBy   String? // provider:model
+  promptVersion String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contentItems ContentItem[]
+
+  @@index([tenantId, month])
+  @@index([tenantId, status])
+  @@map("marketing_strategies")
+}
+
+enum IdeaCategory {
+  NEW_PRODUCT
+  NEW_SERVICE
+  PROMOTION
+  DISCOUNT
+  EVENT
+  ANNOUNCEMENT
+  SEASONAL_CAMPAIGN
+  INVENTORY_PROMOTION
+  BRAND_STORY
+  CUSTOMER_STORY
+  BUSINESS_UPDATE
+  OTHER
+}
+
+enum IdeaStatus {
+  RECEIVED
+  NEEDS_INFO
+  PROPOSED
+  ACCEPTED
+  REJECTED
+}
+
+model Idea {
+  id             String        @id @default(cuid())
+  tenantId       String
+  text           String
+  mediaAssetId   String?
+  classification IdeaCategory?
+  missingInfo    String[]      @default([])
+  status         IdeaStatus    @default(RECEIVED)
+  campaignId     String?       @unique
+  createdById    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign Campaign? @relation(fields: [campaignId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@map("ideas")
+}
+
+enum CampaignStatus {
+  PROPOSED
+  APPROVED
+  REJECTED
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+model Campaign {
+  id            String         @id @default(cuid())
+  tenantId      String
+  name          String
+  objective     String?
+  category      IdeaCategory   @default(OTHER)
+  audience      String?
+  channels      String[]       @default([]) // platform ids
+  startsAt      DateTime?
+  endsAt        DateTime?
+  status        CampaignStatus @default(PROPOSED)
+  // Locked commercial facts (price, dates, phone) — rendered deterministically,
+  // never left to an AI model to (re)generate. See §19 of the product spec.
+  facts         Json?
+  proposal      Json? // full AI proposal for review UI
+  generatedBy   String?
+  promptVersion String?
+  createdById   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contentItems ContentItem[]
+  idea         Idea?
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@map("marketing_campaigns")
+}
+
+enum ContentStatus {
+  DRAFT
+  AI_GENERATED
+  NEEDS_REVIEW
+  APPROVED
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  ARCHIVED
+}
+
+enum ContentType {
+  POST
+  STORY
+  REEL
+  FLYER
+  UPDATE
+  PROMOTION
+  MESSAGE
+}
+
+model ContentItem {
+  id            String        @id @default(cuid())
+  tenantId      String
+  campaignId    String?
+  strategyId    String?
+  platform      String // instagram | facebook | whatsapp | google_business | linkedin
+  contentType   ContentType   @default(POST)
+  title         String
+  body          String
+  hook          String?
+  cta           String?
+  hashtags      String[]      @default([])
+  assetId       String?
+  scheduledAt   DateTime?
+  status        ContentStatus @default(DRAFT)
+  publishedAt   DateTime?
+  failureReason String?
+  aiGenerated   Boolean       @default(false)
+  generatedBy   String?
+  promptVersion String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign Campaign?          @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  strategy MarketingStrategy? @relation(fields: [strategyId], references: [id], onDelete: SetNull)
+  socialPosts SocialPost[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, scheduledAt])
+  @@index([tenantId, createdAt])
+  @@map("content_items")
+}
+
+// ─────────────────────────── assets ───────────────────────────
+
+enum AssetKind {
+  IMAGE
+  VIDEO
+  FLYER
+  LOGO
+  GENERATED
+  OTHER
+}
+
+model Asset {
+  id          String    @id @default(cuid())
+  tenantId    String
+  kind        AssetKind @default(IMAGE)
+  filename    String
+  mimeType    String
+  sizeBytes   Int
+  storageKey  String    @unique
+  width       Int?
+  height      Int?
+  tags        String[]  @default([])
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("assets")
+}
+
+// ─────────────────────────── social ───────────────────────────
+
+enum SocialAccountStatus {
+  CONNECTED
+  EXPIRED
+  DISCONNECTED
+  ERROR
+}
+
+model SocialAccount {
+  id                  String              @id @default(cuid())
+  tenantId            String
+  provider            String // instagram | facebook | whatsapp | google_business | linkedin
+  accountId           String
+  accountName         String
+  accessTokenEnc      String // AES-256-GCM encrypted, never logged
+  refreshTokenEnc     String?
+  expiresAt           DateTime?
+  status              SocialAccountStatus @default(CONNECTED)
+  lastPublishedAt     DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  socialPosts SocialPost[]
+
+  @@unique([tenantId, provider, accountId])
+  @@index([tenantId])
+  @@map("social_accounts")
+}
+
+enum SocialPostStatus {
+  QUEUED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+}
+
+model SocialPost {
+  id              String           @id @default(cuid())
+  tenantId        String
+  contentItemId   String
+  socialAccountId String
+  externalId      String?
+  status          SocialPostStatus @default(QUEUED)
+  error           String?
+  publishedAt     DateTime?
+  createdAt       DateTime         @default(now())
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contentItem   ContentItem   @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("social_posts")
+}
+
+// ─────────────────────────── analytics & intelligence ───────────────────────────
+
+model AnalyticsSnapshot {
+  id          String   @id @default(cuid())
+  tenantId    String
+  platform    String
+  date        DateTime @db.Date
+  reach       Int      @default(0)
+  engagement  Int      @default(0)
+  clicks      Int      @default(0)
+  leads       Int      @default(0)
+  bookings    Int      @default(0)
+  conversions Int      @default(0)
+  raw         Json?
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, platform, date])
+  @@index([tenantId, date])
+  @@map("analytics")
+}
+
+enum InsightStatus {
+  NEW
+  APPLIED
+  DISMISSED
+}
+
+model AiInsight {
+  id        String        @id @default(cuid())
+  tenantId  String
+  kind      String // insight | recommendation
+  title     String
+  body      String
+  data      Json?
+  status    InsightStatus @default(NEW)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("ai_insights")
+}
+
+// ─────────────────────────── automation ───────────────────────────
+
+enum AutomationLevel {
+  MANUAL
+  ASSISTED
+  AUTOMATED
+}
+
+model AutomationSettings {
+  id                          String          @id @default(cuid())
+  tenantId                    String          @unique
+  level                       AutomationLevel @default(MANUAL)
+  autoGenerateContent         Boolean         @default(true)
+  autoSchedule                Boolean         @default(false)
+  autoPublish                 Boolean         @default(false)
+  aiReplanning                Boolean         @default(true)
+  maxPostsPerWeek             Int             @default(5)
+  quietHoursStart             Int? // hour 0-23, tenant-local
+  quietHoursEnd               Int?
+  requireApprovalForPromotions Boolean        @default(true)
+  paused                      Boolean         @default(false)
+  createdAt                   DateTime        @default(now())
+  updatedAt                   DateTime        @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("automation_rules")
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  tenantId  String
+  userId    String?
+  kind      String // approval_needed | campaign_ready | published | publish_failed | connection_expired | ai_question | insight
+  title     String
+  body      String?
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, readAt])
+  @@map("notifications")
+}
+
+// ─────────────────────────── billing & usage ───────────────────────────
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  tenantId         String             @unique
+  planId           String             @default("starter")
+  status           SubscriptionStatus @default(TRIALING)
+  currentPeriodEnd DateTime?
+  provider         String? // razorpay | stripe
+  providerRef      String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+model UsageRecord {
+  id       String @id @default(cuid())
+  tenantId String
+  metric   String // ai_text | ai_image | posts_published | storage_bytes | campaigns
+  amount   Int    @default(1)
+  period   String // "2026-09"
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, metric, period])
+  @@map("usage_records")
+}
+
+// ─────────────────────────── platform ───────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  tenantId   String?
+  userId     String?
+  action     String
+  targetType String?
+  targetId   String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  DEAD
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  tenantId    String?
+  type        String // publish_content | generate_strategy | generate_campaign | collect_analytics | refresh_tokens | notify
+  payload     Json
+  status      JobStatus @default(PENDING)
+  runAt       DateTime  @default(now())
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  lastError   String?
+  lockedAt    DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+  @@index([tenantId])
+  @@map("jobs")
+}

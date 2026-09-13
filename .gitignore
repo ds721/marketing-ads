@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+next-env.d.ts
+
+# env — never commit real secrets
+.env
+.env.local
+.env*.local
+
+# local dev file storage (tenant uploads)
+storage/
+
+# misc
+.DS_Store
+*.tsbuildinfo
+coverage/

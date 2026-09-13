@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+/* ── Masala tokens — light is the default; dark responds to the OS or an
+     explicit [data-theme] stamp. Components only ever use the tokens. ── */
+
+:root {
+  --bg: #fbf6ee;
+  --surface: #ffffff;
+  --surface-2: #f5edDF;
+  --ink: #2e2447;
+  --ink-soft: #6e6584;
+  --ink-faint: #9c93ae;
+  --line: #e8decb;
+  --line-strong: #d9cdb4;
+
+  --beet: #d6367b;
+  --beet-deep: #b32663;
+  --beet-tint: #fbe3ef;
+  --saffron: #f5a31c;
+  --saffron-deep: #9c6a00;
+  --saffron-tint: #fcefd4;
+  --chili: #e8492e;
+  --chili-deep: #c23318;
+  --chili-tint: #fce4de;
+  --leaf: #149a66;
+  --leaf-deep: #0e7a50;
+  --leaf-tint: #dcf2e7;
+  --peacock: #0e93a8;
+  --peacock-deep: #0a7386;
+  --peacock-tint: #dbf0f3;
+
+  --on-accent: #ffffff;
+  --shadow: 0 1px 2px rgba(46, 36, 71, 0.05), 0 8px 24px rgba(46, 36, 71, 0.07);
+  --shadow-lift: 0 2px 4px rgba(46, 36, 71, 0.06), 0 16px 40px rgba(46, 36, 71, 0.12);
+
+  --r-control: 10px;
+  --r-card: 16px;
+  --r-panel: 22px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171126;
+    --surface: #221a38;
+    --surface-2: #2b2247;
+    --ink: #f1eaf7;
+    --ink-soft: #afa4c6;
+    --ink-faint: #7f7499;
+    --line: #372c55;
+    --line-strong: #453868;
+
+    --beet: #f0569b;
+    --beet-deep: #f87cb3;
+    --beet-tint: #3d2141;
+    --saffron: #ffb733;
+    --saffron-deep: #ffc65c;
+    --saffron-tint: #3c2f1e;
+    --chili: #ff6a4d;
+    --chili-deep: #ff8a70;
+    --chili-tint: #422420;
+    --leaf: #2bc488;
+    --leaf-deep: #52d6a0;
+    --leaf-tint: #16342c;
+    --peacock: #2cb8ce;
+    --peacock-deep: #55ccdf;
+    --peacock-tint: #143540;
+
+    --on-accent: #1b1430;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+    --shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.5);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #171126;
+  --surface: #221a38;
+  --surface-2: #2b2247;
+  --ink: #f1eaf7;
+  --ink-soft: #afa4c6;
+  --ink-faint: #7f7499;
+  --line: #372c55;
+  --line-strong: #453868;
+
+  --beet: #f0569b;
+  --beet-deep: #f87cb3;
+  --beet-tint: #3d2141;
+  --saffron: #ffb733;
+  --saffron-deep: #ffc65c;
+  --saffron-tint: #3c2f1e;
+  --chili: #ff6a4d;
+  --chili-deep: #ff8a70;
+  --chili-tint: #422420;
+  --leaf: #2bc488;
+  --leaf-deep: #52d6a0;
+  --leaf-tint: #16342c;
+  --peacock: #2cb8ce;
+  --peacock-deep: #55ccdf;
+  --peacock-tint: #143540;
+
+  --on-accent: #1b1430;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-beet: var(--beet);
+  --color-beet-deep: var(--beet-deep);
+  --color-beet-tint: var(--beet-tint);
+  --color-saffron: var(--saffron);
+  --color-saffron-deep: var(--saffron-deep);
+  --color-saffron-tint: var(--saffron-tint);
+  --color-chili: var(--chili);
+  --color-chili-deep: var(--chili-deep);
+  --color-chili-tint: var(--chili-tint);
+  --color-leaf: var(--leaf);
+  --color-leaf-deep: var(--leaf-deep);
+  --color-leaf-tint: var(--leaf-tint);
+  --color-peacock: var(--peacock);
+  --color-peacock-deep: var(--peacock-deep);
+  --color-peacock-tint: var(--peacock-tint);
+  --color-on-accent: var(--on-accent);
+  --radius-control: var(--r-control);
+  --radius-card: var(--r-card);
+  --radius-panel: var(--r-panel);
+  --font-display: var(--font-bricolage), "Avenir Next", sans-serif;
+  --font-sans: var(--font-instrument), "Helvetica Neue", Arial, sans-serif;
+  --shadow-soft: var(--shadow);
+  --shadow-lift: var(--shadow-lift);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-instrument), "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .display {
+  font-family: var(--font-bricolage), "Avenir Next", sans-serif;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.tnum { font-variant-numeric: tabular-nums; }
+
+*:focus-visible {
+  outline: 2px solid var(--beet);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
