@@ -29,9 +29,18 @@ interface PromptContext {
   analytics?: Array<{ topic?: string; engagement?: number; bookings?: number }>;
 }
 
-/** Prompts embed their context as a JSON block; the mock reads it back. */
+const CONTEXT_MARKER = "BUSINESS CONTEXT (JSON):";
+
+/**
+ * Prompts embed their context under a labelled marker; the mock reads it back.
+ * Anchoring on the marker matters — some prompts carry an earlier JSON block
+ * (the locked facts), and spanning from the first brace would capture both and
+ * parse as nothing.
+ */
 function readContext(prompt: string): PromptContext {
-  const start = prompt.indexOf("{");
+  const marker = prompt.lastIndexOf(CONTEXT_MARKER);
+  const from = marker === -1 ? 0 : marker + CONTEXT_MARKER.length;
+  const start = prompt.indexOf("{", from);
   const end = prompt.lastIndexOf("}");
   if (start === -1 || end <= start) return {};
   try {

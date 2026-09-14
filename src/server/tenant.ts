@@ -3,22 +3,14 @@ import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import type { Tenant, TenantRole, TenantUser } from "@prisma/client";
+import { roleAtLeast } from "@/lib/roles";
 
 // ─── Tenant isolation core ────────────────────────────────────────────────
 // Every server action / page that touches tenant data goes through
 // requireTenant(slug, minRole). The tenantId used in queries comes ONLY
 // from the membership row loaded here — never from client input.
 
-const ROLE_RANK: Record<TenantRole, number> = {
-  VIEWER: 0,
-  EDITOR: 1,
-  ADMIN: 2,
-  OWNER: 3,
-};
-
-export function roleAtLeast(role: TenantRole, min: TenantRole): boolean {
-  return ROLE_RANK[role] >= ROLE_RANK[min];
-}
+export { roleAtLeast } from "@/lib/roles";
 
 export class TenantAccessError extends Error {
   constructor(message = "You don't have access to this business.") {

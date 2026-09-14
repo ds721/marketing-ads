@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { TenantRole } from "@prisma/client";
+import { roleAtLeast } from "@/lib/roles";
 
 const NAV = [
   { seg: "dashboard", label: "Home", hue: "" },
@@ -17,13 +18,11 @@ const NAV = [
   { seg: "settings", label: "Settings", hue: "", minRole: "ADMIN" as TenantRole },
 ];
 
-const RANK: Record<TenantRole, number> = { VIEWER: 0, EDITOR: 1, ADMIN: 2, OWNER: 3 };
-
 export function SidebarNav({ slug, role }: { slug: string; role: TenantRole }) {
   const pathname = usePathname();
   return (
     <nav className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible flex-1 md:flex-none">
-      {NAV.filter((item) => !item.minRole || RANK[role] >= RANK[item.minRole]).map((item) => {
+      {NAV.filter((item) => !item.minRole || roleAtLeast(role, item.minRole)).map((item) => {
         const href = `/app/${slug}/${item.seg}`;
         const active = pathname.startsWith(href);
         return (

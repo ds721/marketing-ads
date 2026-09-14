@@ -147,7 +147,7 @@ export function flyerSpecFromCampaign(params: {
     headline: facts.offerName ?? params.campaignName,
     subhead: facts.discount ?? null,
     price: facts.price ?? null,
-    when: facts.daysOrTimes ?? [facts.startDate, facts.endDate].filter(Boolean).join(" – ") ?? null,
+    when: facts.daysOrTimes ?? ([facts.startDate, facts.endDate].filter(Boolean).join(" – ") || null),
     businessName: params.business.name,
     cta: params.cta,
     phone: params.business.phone,

@@ -147,3 +147,8 @@ export async function resetPasswordAction(_prev: FormState, formData: FormData):
   await audit({ userId: user.id, action: "user.password_reset" });
   return { ok: true, message: "Password updated. You can log in now." };
 }
+
+/** Starts the Google OAuth flow as a server action (no raw link to an API route). */
+export async function googleSignInAction(): Promise<void> {
+  await signIn("google", { redirectTo: "/app" });
+}

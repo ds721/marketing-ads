@@ -7,6 +7,7 @@ import {
   registerAction,
   requestPasswordResetAction,
   resetPasswordAction,
+  googleSignInAction,
   type FormState,
 } from "@/server/actions/auth";
 import { Field, FormError, FormSuccess, inputCls, btnStyles } from "@/components/ui";
@@ -28,9 +29,9 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
         {pending ? "Logging in…" : "Log in"}
       </button>
       {googleEnabled ? (
-        <a href="/api/auth/signin/google" className={btnStyles.secondary}>
+        <button type="submit" formAction={googleSignInAction} className={btnStyles.secondary}>
           Continue with Google
-        </a>
+        </button>
       ) : null}
       <div className="flex justify-between text-sm text-ink-soft">
         <Link className="hover:text-ink" href="/forgot-password">
