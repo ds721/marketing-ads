@@ -2,13 +2,16 @@ import Link from "next/link";
 import { db } from "@/server/db";
 import { PLANS, type PlanId } from "@/server/plans";
 import { platformMetrics } from "@/server/metrics";
+import { platformStatuses } from "@/server/social";
+import { isMockAi } from "@/server/ai";
+import { isMediaToolingAvailable } from "@/server/creative/media";
 import { Card, SectionLabel, Pill } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Platform overview" };
 
 export default async function AdminOverview() {
-  const [m, planCounts, recentSignups] = await Promise.all([
+  const [m, planCounts, recentSignups, ffmpegReady] = await Promise.all([
     platformMetrics(),
     db.subscription.groupBy({ by: ["planId", "status"], _count: true }),
     db.user.findMany({
@@ -23,7 +26,35 @@ export default async function AdminOverview() {
         memberships: { select: { tenant: { select: { name: true, slug: true } } }, take: 1 },
       },
     }),
+    isMediaToolingAvailable(),
   ]);
+
+  // What still needs the operator's hand before clients get the full product.
+  const platforms = platformStatuses();
+  const setup = [
+    {
+      label: "AI generation",
+      ok: !isMockAi(),
+      detail: isMockAi() ? "Running the demo stub — set AI_PROVIDER=openai and OPENAI_API_KEY" : "Live",
+    },
+    ...platforms
+      .filter((p) => p.supported)
+      .map((p) => ({
+        label: `${p.name} publishing`,
+        ok: p.available,
+        detail: p.available ? "Clients can connect" : `Set ${p.requiredEnv.join(" + ")} — see README "Connecting Instagram"`,
+      })),
+    {
+      label: "Video branding",
+      ok: ffmpegReady,
+      detail: ffmpegReady ? "ffmpeg found" : "Install ffmpeg on the server",
+    },
+    {
+      label: "Payments",
+      ok: m.billingConnected,
+      detail: m.billingConnected ? "Connected" : "No provider wired — plans are enforced but nothing is charged",
+    },
+  ];
 
   const revenue = [
     { label: "Paying", value: m.payingTenants, tone: "leaf" as const },
@@ -52,6 +83,29 @@ export default async function AdminOverview() {
   return (
     <main className="max-w-6xl mx-auto px-6 py-8">
       <h1 className="text-[26px] font-bold mb-6">Platform overview</h1>
+
+      <section className="mb-8">
+        <SectionLabel>Platform setup</SectionLabel>
+        <Card className="p-0 overflow-hidden">
+          <ul>
+            {setup.map((item) => (
+              <li
+                key={item.label}
+                className="flex items-center gap-3 px-4 py-3 border-b border-line last:border-0"
+              >
+                <span
+                  aria-hidden="true"
+                  className={`w-2.5 h-2.5 rounded-full shrink-0 ${item.ok ? "bg-leaf" : "bg-chili"}`}
+                />
+                <span className="font-semibold text-sm w-44 shrink-0">{item.label}</span>
+                <span className={`text-[13px] ${item.ok ? "text-ink-soft" : "text-chili-deep"}`}>
+                  {item.detail}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </section>
 
       <section className="mb-8">
         <SectionLabel>Revenue</SectionLabel>
