@@ -4,6 +4,7 @@ import { db } from "@/server/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, Pill, StatusPill, PlatformBadge, SectionLabel } from "@/components/ui";
 import { CampaignActions } from "@/components/campaign-actions";
+import { FlyerButton } from "@/components/flyer-button";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 export const metadata = { title: "Campaign" };
@@ -34,6 +35,12 @@ export default async function CampaignPage({
     },
   });
   if (!campaign) notFound();
+
+  const flyers = await db.asset.findMany({
+    where: { tenantId: ctx.tenant.id, kind: "FLYER", tags: { has: "campaign" } },
+    orderBy: { createdAt: "desc" },
+    take: 3,
+  });
 
   const facts = (campaign.facts as Record<string, string | null> | null) ?? {};
   const statedFacts = Object.entries(facts).filter(([, v]) => v);
@@ -85,6 +92,32 @@ export default async function CampaignPage({
           <p className="text-[14.5px]">{proposal.rationale}</p>
         </Card>
       )}
+
+      <Card className="mb-5">
+        <SectionLabel>Flyer</SectionLabel>
+        {flyers.length > 0 ? (
+          <div className="flex gap-3 items-start flex-wrap">
+            {flyers.map((f) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={f.id}
+                src={`/api/assets/${f.id}`}
+                alt={f.filename}
+                className="w-40 h-40 object-cover rounded-[12px] border border-line"
+              />
+            ))}
+            {canEdit && <FlyerButton slug={slug} campaignId={campaign.id} />}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 flex-wrap">
+            <p className="text-[14px] text-ink-soft flex-1 min-w-[240px]">
+              A print-and-post ready flyer using your brand colours, with the price and dates placed
+              by us — not by an image model.
+            </p>
+            {canEdit && <FlyerButton slug={slug} campaignId={campaign.id} />}
+          </div>
+        )}
+      </Card>
 
       <SectionLabel>What we&apos;ll publish</SectionLabel>
       <div className="flex flex-col gap-2.5 mb-6">
