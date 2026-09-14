@@ -9,17 +9,26 @@ import { audit } from "@/server/audit";
 import { slugify } from "@/lib/utils";
 import { getPlan } from "@/server/plans";
 import type { FormState } from "@/server/actions/auth";
+import {
+  optionalText,
+  requiredText,
+  optionalPrice,
+  optionalUrl,
+  optionalEmail,
+  optionalPhone,
+  firstError,
+} from "@/lib/validation";
 
 // ── Onboarding: create the tenant ────────────────────────────────────────
 
 const createBusinessSchema = z.object({
-  name: z.string().min(2, "Business name needs at least 2 characters.").max(120),
-  category: z.string().min(2).max(80),
-  city: z.string().max(80).optional().or(z.literal("")),
-  phone: z.string().max(20).optional().or(z.literal("")),
-  website: z.string().url("Website should be a full URL (https://…)").optional().or(z.literal("")),
-  email: z.string().email().optional().or(z.literal("")),
-  address: z.string().max(300).optional().or(z.literal("")),
+  name: requiredText(2, 120, "Business name"),
+  category: requiredText(2, 80, "Business type"),
+  city: optionalText(80, "City"),
+  phone: optionalPhone(),
+  website: optionalUrl(),
+  email: optionalEmail(),
+  address: optionalText(300, "Address"),
 });
 
 export async function createBusinessAction(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -34,7 +43,7 @@ export async function createBusinessAction(_prev: FormState, formData: FormData)
     email: formData.get("email"),
     address: formData.get("address"),
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
+  if (!parsed.success) return { error: firstError(parsed.error) };
   const data = parsed.data;
 
   // Per-user business limit comes from the highest plan among owned tenants
@@ -64,11 +73,11 @@ export async function createBusinessAction(_prev: FormState, formData: FormData)
       businessProfile: {
         create: {
           category: data.category,
-          city: data.city || null,
-          phone: data.phone || null,
-          website: data.website || null,
-          email: data.email || null,
-          address: data.address || null,
+          city: data.city ?? null,
+          phone: data.phone ?? null,
+          website: data.website ?? null,
+          email: data.email ?? null,
+          address: data.address ?? null,
         },
       },
       brandSettings: { create: {} },
@@ -97,11 +106,11 @@ export async function saveAboutAction(slug: string, _prev: FormState, formData: 
 }
 
 const productSchema = z.object({
-  name: z.string().min(1, "Product name is required.").max(160),
+  name: requiredText(1, 160, "Product name"),
   kind: z.enum(["PRODUCT", "SERVICE"]),
-  description: z.string().max(1000).optional().or(z.literal("")),
-  price: z.coerce.number().min(0).max(10_000_000).optional().or(z.literal("").transform(() => undefined)),
-  category: z.string().max(80).optional().or(z.literal("")),
+  description: optionalText(1000, "Description"),
+  price: optionalPrice(),
+  category: optionalText(80, "Category"),
 });
 
 export async function addProductAction(slug: string, _prev: FormState, formData: FormData): Promise<FormState> {
@@ -113,16 +122,16 @@ export async function addProductAction(slug: string, _prev: FormState, formData:
     price: formData.get("price"),
     category: formData.get("category"),
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
+  if (!parsed.success) return { error: firstError(parsed.error) };
 
   await db.product.create({
     data: {
       tenantId: ctx.tenant.id,
       name: parsed.data.name,
       kind: parsed.data.kind,
-      description: parsed.data.description || null,
+      description: parsed.data.description ?? null,
       price: parsed.data.price ?? null,
-      category: parsed.data.category || null,
+      category: parsed.data.category ?? null,
     },
   });
   revalidatePath(`/onboarding/${slug}/products`);
@@ -140,9 +149,13 @@ export async function deleteProductAction(slug: string, productId: string): Prom
 }
 
 const audienceGoalsSchema = z.object({
-  audience: z.string().min(5, "Describe your customers in a sentence or two.").max(2000),
-  location: z.string().max(120).optional().or(z.literal("")),
-  ageRange: z.string().max(40).optional().or(z.literal("")),
+  audience: z
+    .string()
+    .trim()
+    .min(5, "Describe your customers in a sentence or two.")
+    .max(2000, "That's a bit long — a couple of sentences is plenty."),
+  location: optionalText(120, "Area"),
+  ageRange: optionalText(40, "Age range"),
 });
 
 export async function saveAudienceAction(slug: string, _prev: FormState, formData: FormData): Promise<FormState> {
@@ -152,13 +165,13 @@ export async function saveAudienceAction(slug: string, _prev: FormState, formDat
     location: formData.get("location"),
     ageRange: formData.get("ageRange"),
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
+  if (!parsed.success) return { error: firstError(parsed.error) };
 
   const existing = await db.audience.findFirst({ where: { tenantId: ctx.tenant.id } });
   const data = {
     description: parsed.data.audience,
-    location: parsed.data.location || null,
-    ageRange: parsed.data.ageRange || null,
+    location: parsed.data.location ?? null,
+    ageRange: parsed.data.ageRange ?? null,
   };
   if (existing) {
     await db.audience.update({ where: { id: existing.id }, data });
@@ -218,12 +231,12 @@ const brandSchema = z.object({
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Colors are hex values like #D6367B."),
   secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  toneOfVoice: z.string().max(200).optional().or(z.literal("")),
-  brandDescription: z.string().max(2000).optional().or(z.literal("")),
-  wordsToUse: z.string().max(1000).optional().or(z.literal("")),
-  wordsToAvoid: z.string().max(1000).optional().or(z.literal("")),
-  ctaPreference: z.string().max(120).optional().or(z.literal("")),
-  watermarkText: z.string().max(60).optional().or(z.literal("")),
+  toneOfVoice: optionalText(200, "Tone of voice"),
+  brandDescription: optionalText(2000, "Brand description"),
+  wordsToUse: optionalText(1000, "Words we love"),
+  wordsToAvoid: optionalText(1000, "Words to avoid"),
+  ctaPreference: optionalText(120, "Call to action"),
+  watermarkText: optionalText(60, "Text mark"),
   watermarkPosition: z.enum(["TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT", "CENTER"]),
   watermarkOpacity: z.coerce.number().int().min(10).max(100),
 });
@@ -243,7 +256,7 @@ export async function saveBrandAction(slug: string, _prev: FormState, formData: 
     watermarkPosition: formData.get("watermarkPosition") ?? "BOTTOM_RIGHT",
     watermarkOpacity: formData.get("watermarkOpacity") ?? 75,
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
+  if (!parsed.success) return { error: firstError(parsed.error) };
 
   const csv = (s?: string) =>
     (s ?? "")
@@ -258,13 +271,13 @@ export async function saveBrandAction(slug: string, _prev: FormState, formData: 
       primaryColor: parsed.data.primaryColor,
       secondaryColor: parsed.data.secondaryColor,
       accentColor: parsed.data.accentColor,
-      toneOfVoice: parsed.data.toneOfVoice || null,
-      brandDescription: parsed.data.brandDescription || null,
+      toneOfVoice: parsed.data.toneOfVoice ?? null,
+      brandDescription: parsed.data.brandDescription ?? null,
       wordsToUse: csv(parsed.data.wordsToUse),
       wordsToAvoid: csv(parsed.data.wordsToAvoid),
-      ctaPreference: parsed.data.ctaPreference || null,
+      ctaPreference: parsed.data.ctaPreference ?? null,
       watermarkEnabled: formData.get("watermarkEnabled") === "on",
-      watermarkText: parsed.data.watermarkText || null,
+      watermarkText: parsed.data.watermarkText ?? null,
       watermarkPosition: parsed.data.watermarkPosition,
       watermarkOpacity: parsed.data.watermarkOpacity,
     },
@@ -277,10 +290,10 @@ export async function saveBrandAction(slug: string, _prev: FormState, formData: 
 // ── Offers ───────────────────────────────────────────────────────────────
 
 const offerSchema = z.object({
-  title: z.string().min(2, "Give the offer a name.").max(160),
-  description: z.string().max(1000).optional().or(z.literal("")),
-  price: z.coerce.number().min(0).max(10_000_000).optional().or(z.literal("").transform(() => undefined)),
-  endsAt: z.string().optional().or(z.literal("")),
+  title: requiredText(2, 160, "Offer name"),
+  description: optionalText(1000, "Details"),
+  price: optionalPrice(),
+  endsAt: optionalText(20, "End date"),
 });
 
 export async function addOfferAction(slug: string, _prev: FormState, formData: FormData): Promise<FormState> {
@@ -291,13 +304,13 @@ export async function addOfferAction(slug: string, _prev: FormState, formData: F
     price: formData.get("price"),
     endsAt: formData.get("endsAt"),
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
+  if (!parsed.success) return { error: firstError(parsed.error) };
 
   await db.offer.create({
     data: {
       tenantId: ctx.tenant.id,
       title: parsed.data.title,
-      description: parsed.data.description || null,
+      description: parsed.data.description ?? null,
       price: parsed.data.price ?? null,
       endsAt: parsed.data.endsAt ? new Date(parsed.data.endsAt) : null,
     },
