@@ -35,14 +35,25 @@ export function getAdapter(provider: string): PlatformAdapter {
 export interface PlatformStatus {
   id: string;
   name: string;
+  /** A real adapter exists — the product can publish here once configured. */
+  supported: boolean;
   /** Platform OAuth app credentials exist on this deployment. */
   available: boolean;
+  /** What the platform operator must set for this to go live. */
+  requiredEnv: string[];
 }
+
+const REQUIRED_ENV: Record<string, string[]> = {
+  instagram: ["META_APP_ID", "META_APP_SECRET"],
+  facebook: ["META_APP_ID", "META_APP_SECRET"],
+};
 
 export function platformStatuses(): PlatformStatus[] {
   return Object.values(ADAPTERS).map((a) => ({
     id: a.id,
     name: a.name,
+    supported: !(a instanceof UnavailableAdapter),
     available: a.isConfigured(),
+    requiredEnv: REQUIRED_ENV[a.id] ?? [],
   }));
 }

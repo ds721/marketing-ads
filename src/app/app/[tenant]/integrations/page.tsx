@@ -34,6 +34,13 @@ export default async function IntegrationsPage({
   const { error, connected } = await searchParams;
   const ctx = await requireTenant(slug);
   const canManage = roleAtLeast(ctx.role, "ADMIN");
+  // Platform operators get told exactly what to configure; owners get told
+  // who to ask. Neither should see "coming soon" for a platform that's built.
+  const viewer = await db.user.findUnique({
+    where: { id: ctx.userId },
+    select: { isPlatformAdmin: true },
+  });
+  const isOperator = viewer?.isPlatformAdmin ?? false;
 
   const accounts = await db.socialAccount.findMany({
     where: { tenantId: ctx.tenant.id, status: { not: "DISCONNECTED" } },
@@ -84,7 +91,9 @@ export default async function IntegrationsPage({
                         ? "Connection expired — reconnect to keep posting."
                         : p.available
                           ? "Not connected yet."
-                          : "Not available on this deployment yet."}
+                          : p.supported
+                            ? "Built and ready — needs the Meta app set up on this server."
+                            : "Not available yet."}
                   </div>
                 </div>
 
@@ -106,10 +115,35 @@ export default async function IntegrationsPage({
                       Connect
                     </a>
                   )
+                ) : p.supported ? (
+                  <Pill tone="chili">Needs setup</Pill>
                 ) : (
                   <Pill tone="saffron">Coming soon</Pill>
                 )}
               </div>
+
+              {p.supported && !p.available && (
+                <p className="text-[12.5px] bg-chili-tint text-chili-deep rounded-[10px] px-3.5 py-2.5">
+                  {isOperator ? (
+                    <>
+                      <b>You&apos;re the platform operator:</b> set{" "}
+                      {p.requiredEnv.map((k, i) => (
+                        <span key={k}>
+                          <code className="font-mono">{k}</code>
+                          {i < p.requiredEnv.length - 1 ? " and " : ""}
+                        </span>
+                      ))}{" "}
+                      in the server&apos;s environment, then restart. The README section
+                      &ldquo;Connecting Instagram&rdquo; walks through creating the Meta app.
+                    </>
+                  ) : (
+                    <>
+                      This platform is built and works — your Markit administrator hasn&apos;t
+                      finished connecting it to {p.name} yet. Ask them to enable it.
+                    </>
+                  )}
+                </p>
+              )}
 
               {isMeta && live.length === 0 && p.available && (
                 <p className="text-[12.5px] text-ink-soft bg-surface-2 rounded-[10px] px-3.5 py-2.5">
