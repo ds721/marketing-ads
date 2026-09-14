@@ -219,3 +219,34 @@ export async function fetchProfile(accessToken: string): Promise<InstagramProfil
 export function canPublish(profile: InstagramProfile): boolean {
   return profile.accountType === "BUSINESS" || profile.accountType === "MEDIA_CREATOR";
 }
+
+// ── Signed requests from Meta ─────────────────────────────────────────────
+// Meta calls our deauthorize and data-deletion URLs with a `signed_request`:
+// base64url(signature).base64url(payload), HMAC-SHA256 with the app secret.
+// Anything that doesn't verify is ignored — a forged call must not be able
+// to disconnect or delete someone's account.
+
+export interface SignedRequestPayload {
+  user_id: string;
+  algorithm?: string;
+  issued_at?: number;
+}
+
+export function parseSignedRequest(signedRequest: string): SignedRequestPayload | null {
+  const secret = process.env.INSTAGRAM_APP_SECRET;
+  if (!secret) return null;
+  const [sigPart, payloadPart] = signedRequest.split(".");
+  if (!sigPart || !payloadPart) return null;
+
+  const expected = createHmac("sha256", secret).update(payloadPart).digest();
+  const given = Buffer.from(sigPart, "base64url");
+  if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
+
+  try {
+    const payload = JSON.parse(Buffer.from(payloadPart, "base64url").toString("utf8")) as SignedRequestPayload;
+    if (!payload.user_id) return null;
+    return { ...payload, user_id: String(payload.user_id) };
+  } catch {
+    return null;
+  }
+}

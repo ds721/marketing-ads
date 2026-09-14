@@ -119,3 +119,23 @@ describe("signed public asset links", () => {
     expect(verifyPublicAssetLink("asset_abc", String(Date.now() + 1000), null)).toBe(false);
   });
 });
+
+describe("signed requests from Meta", () => {
+  it("accepts a request signed with the app secret", async () => {
+    process.env.INSTAGRAM_APP_SECRET = "test-app-secret";
+    const { parseSignedRequest } = await import("@/server/social/instagram-oauth");
+    const payload = Buffer.from(JSON.stringify({ user_id: "17841400000", algorithm: "HMAC-SHA256" })).toString("base64url");
+    const sig = createHmac("sha256", "test-app-secret").update(payload).digest("base64url");
+    expect(parseSignedRequest(`${sig}.${payload}`)?.user_id).toBe("17841400000");
+  });
+
+  it("ignores a forged request — nobody can disconnect or delete someone else's account", async () => {
+    process.env.INSTAGRAM_APP_SECRET = "test-app-secret";
+    const { parseSignedRequest } = await import("@/server/social/instagram-oauth");
+    const payload = Buffer.from(JSON.stringify({ user_id: "17841400000" })).toString("base64url");
+    const badSig = createHmac("sha256", "wrong-secret").update(payload).digest("base64url");
+    expect(parseSignedRequest(`${badSig}.${payload}`)).toBeNull();
+    expect(parseSignedRequest("garbage")).toBeNull();
+    expect(parseSignedRequest("")).toBeNull();
+  });
+});

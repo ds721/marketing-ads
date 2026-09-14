@@ -8,7 +8,7 @@
 export const RESERVED_SLUGS = new Set([
   // current routes
   "app", "admin", "api", "login", "logout", "register", "signup", "signin",
-  "onboarding", "verify", "reset-password", "forgot-password", "site",
+  "onboarding", "verify", "reset-password", "forgot-password", "site", "deletion-status",
   // framework + well-known paths
   "_next", "static", "public", "favicon.ico", "robots.txt", "sitemap.xml",
   "manifest.json", ".well-known",
