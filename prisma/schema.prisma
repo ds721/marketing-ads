@@ -106,6 +106,7 @@ model Tenant {
   strategies       MarketingStrategy[]
   campaigns        Campaign[]
   contentItems     ContentItem[]
+  videoScripts     VideoScript[]
   ideas            Idea[]
   assets           Asset[]
   socialAccounts   SocialAccount[]
@@ -181,6 +182,12 @@ model BrandSettings {
   wordsToAvoid     String[] @default([])
   ctaPreference    String?
   heroImageAssetId String?
+  // Watermarking: the owner's mark burned onto every creative we produce.
+  // An image logo wins when present; otherwise the text mark is drawn.
+  watermarkEnabled  Boolean           @default(true)
+  watermarkText     String?
+  watermarkPosition WatermarkPosition @default(BOTTOM_RIGHT)
+  watermarkOpacity  Int               @default(75) // percent
   socialLinks      Json?
   publicSiteEnabled Boolean @default(true)
   seoTitle         String?
@@ -192,6 +199,14 @@ model BrandSettings {
 
   @@index([tenantId])
   @@map("brand_settings")
+}
+
+enum WatermarkPosition {
+  TOP_LEFT
+  TOP_RIGHT
+  BOTTOM_LEFT
+  BOTTOM_RIGHT
+  CENTER
 }
 
 enum ProductKind {
@@ -435,6 +450,7 @@ model ContentItem {
   cta           String?
   hashtags      String[]      @default([])
   assetId       String?
+  videoScriptId String?   @unique
   scheduledAt   DateTime?
   status        ContentStatus @default(DRAFT)
   publishedAt   DateTime?
@@ -448,12 +464,42 @@ model ContentItem {
   tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   campaign Campaign?          @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   strategy MarketingStrategy? @relation(fields: [strategyId], references: [id], onDelete: SetNull)
+  videoScript VideoScript?    @relation(fields: [videoScriptId], references: [id], onDelete: SetNull)
   socialPosts SocialPost[]
 
   @@index([tenantId, status])
   @@index([tenantId, scheduledAt])
   @@index([tenantId, createdAt])
   @@map("content_items")
+}
+
+/// A short-video plan: the concept, the shots to film, and what to say.
+/// This is what a shop owner actually needs — not a generated video, but a
+/// shootable plan they can film on a phone in ten minutes.
+model VideoScript {
+  id            String            @id @default(cuid())
+  tenantId      String
+  campaignId    String?
+  concept       String
+  hook          String
+  shots         Json // [{ order, seconds, visual, onScreenText }]
+  voiceover     String?
+  caption       String
+  cta           String?
+  hashtags      String[]          @default([])
+  durationSec   Int               @default(30)
+  format        String            @default("reel") // reel | story | short
+  status        VideoScriptStatus @default(DRAFT)
+  generatedBy   String?
+  promptVersion String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contentItem ContentItem?
+
+  @@index([tenantId, createdAt])
+  @@map("video_scripts")
 }
 
 // ─────────────────────────── assets ───────────────────────────
@@ -467,6 +513,12 @@ enum AssetKind {
   OTHER
 }
 
+enum VideoScriptStatus {
+  DRAFT
+  READY
+  USED
+}
+
 model Asset {
   id          String    @id @default(cuid())
   tenantId    String
@@ -477,6 +529,12 @@ model Asset {
   storageKey  String    @unique
   width       Int?
   height      Int?
+  // Video-specific metadata, filled by the media probe on upload.
+  durationSec Float?
+  posterKey   String? // extracted first-frame thumbnail
+  // Set when this asset was produced from another (e.g. a watermarked copy).
+  sourceAssetId String?
+  watermarked   Boolean  @default(false)
   tags        String[]  @default([])
   createdById String?
   createdAt   DateTime  @default(now())

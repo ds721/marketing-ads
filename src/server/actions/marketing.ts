@@ -252,3 +252,53 @@ export async function generateInsightsAction(slug: string, _prev: FormState): Pr
   revalidatePath(`/app/${slug}/dashboard`);
   return { ok: true, message: "Here's what I found." };
 }
+
+// ── Short video (§12) ─────────────────────────────────────────────────────
+
+export async function generateVideoScriptAction(
+  slug: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const ctx = await requireTenant(slug, "EDITOR");
+
+  const topic = String(formData.get("topic") ?? "").trim();
+  if (topic.length < 3) return { error: "Tell us what the video should be about." };
+
+  const format = String(formData.get("format") ?? "reel");
+  if (!["reel", "story", "short"].includes(format)) return { error: "Pick a video format." };
+  const durationSec = Math.min(90, Math.max(5, Number(formData.get("durationSec") ?? 15)));
+
+  try {
+    const { generateVideoScript } = await import("@/server/marketing/video");
+    await generateVideoScript({
+      tenantId: ctx.tenant.id,
+      userId: ctx.userId,
+      topic,
+      format: format as "reel" | "story" | "short",
+      durationSec,
+    });
+  } catch (err) {
+    return { error: friendly(err, "video.script_generate", ctx.tenant.id) };
+  }
+
+  revalidatePath(`/app/${slug}/videos`);
+  revalidatePath(`/app/${slug}/calendar`);
+  return { ok: true, message: "Your video plan is ready." };
+}
+
+export async function generateVideoForContentAction(slug: string, contentId: string): Promise<void> {
+  const ctx = await requireTenant(slug, "EDITOR");
+  const item = await db.contentItem.findUnique({ where: { id: contentId } });
+  assertTenantOwns(ctx, item);
+
+  const { generateVideoScript } = await import("@/server/marketing/video");
+  await generateVideoScript({
+    tenantId: ctx.tenant.id,
+    userId: ctx.userId,
+    topic: item.title,
+    campaignId: item.campaignId,
+    contentItemId: item.id,
+  });
+  revalidatePath(`/app/${slug}/calendar`);
+}

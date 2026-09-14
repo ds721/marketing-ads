@@ -223,6 +223,9 @@ const brandSchema = z.object({
   wordsToUse: z.string().max(1000).optional().or(z.literal("")),
   wordsToAvoid: z.string().max(1000).optional().or(z.literal("")),
   ctaPreference: z.string().max(120).optional().or(z.literal("")),
+  watermarkText: z.string().max(60).optional().or(z.literal("")),
+  watermarkPosition: z.enum(["TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT", "CENTER"]),
+  watermarkOpacity: z.coerce.number().int().min(10).max(100),
 });
 
 export async function saveBrandAction(slug: string, _prev: FormState, formData: FormData): Promise<FormState> {
@@ -236,6 +239,9 @@ export async function saveBrandAction(slug: string, _prev: FormState, formData: 
     wordsToUse: formData.get("wordsToUse"),
     wordsToAvoid: formData.get("wordsToAvoid"),
     ctaPreference: formData.get("ctaPreference"),
+    watermarkText: formData.get("watermarkText"),
+    watermarkPosition: formData.get("watermarkPosition") ?? "BOTTOM_RIGHT",
+    watermarkOpacity: formData.get("watermarkOpacity") ?? 75,
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
 
@@ -257,6 +263,10 @@ export async function saveBrandAction(slug: string, _prev: FormState, formData: 
       wordsToUse: csv(parsed.data.wordsToUse),
       wordsToAvoid: csv(parsed.data.wordsToAvoid),
       ctaPreference: parsed.data.ctaPreference || null,
+      watermarkEnabled: formData.get("watermarkEnabled") === "on",
+      watermarkText: parsed.data.watermarkText || null,
+      watermarkPosition: parsed.data.watermarkPosition,
+      watermarkOpacity: parsed.data.watermarkOpacity,
     },
   });
   await audit({ tenantId: ctx.tenant.id, userId: ctx.userId, action: "brand.update" });

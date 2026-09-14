@@ -27,6 +27,10 @@ export default async function BrandPage({ params }: { params: Promise<{ tenant: 
           wordsToUse: brand.wordsToUse.join(", "),
           wordsToAvoid: brand.wordsToAvoid.join(", "),
           ctaPreference: brand.ctaPreference ?? "",
+          watermarkEnabled: brand.watermarkEnabled,
+          watermarkText: brand.watermarkText ?? "",
+          watermarkPosition: brand.watermarkPosition,
+          watermarkOpacity: brand.watermarkOpacity,
         }}
       />
     </main>

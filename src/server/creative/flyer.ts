@@ -3,6 +3,8 @@
 // by THIS code, never by an image model. An image model may only ever supply
 // the background art. That is what stops ₹199 becoming ₹1,999.
 
+import { watermarkFragment, type ImageWatermarkOptions } from "@/server/creative/watermark";
+
 export type FlyerFormat = "square" | "portrait" | "story";
 
 export interface FlyerSpec {
@@ -18,6 +20,8 @@ export interface FlyerSpec {
   brand: { primary: string; secondary: string; accent: string };
   /** Optional data: URI for an AI- or owner-supplied background image. */
   backgroundDataUri?: string | null;
+  /** Brand mark burned onto the creative; omitted when the tenant turns it off. */
+  watermark?: ImageWatermarkOptions | null;
 }
 
 const SIZES: Record<FlyerFormat, { w: number; h: number }> = {
@@ -58,7 +62,11 @@ function wrap(text: string, maxChars: number, maxLines: number): string[] {
   return lines;
 }
 
-export function renderFlyerSvg(spec: FlyerSpec, format: FlyerFormat = "square"): string {
+export function renderFlyerSvg(
+  spec: FlyerSpec,
+  format: FlyerFormat = "square",
+  watermark: ImageWatermarkOptions | null = null,
+): string {
   const { w, h } = SIZES[format];
   const pad = Math.round(w * 0.085);
   const headlineSize = Math.round(w * (format === "story" ? 0.085 : 0.095));
@@ -128,6 +136,8 @@ export function renderFlyerSvg(spec: FlyerSpec, format: FlyerFormat = "square"):
       ? `<text x="${pad}" y="${contactY}" font-family="Helvetica,Arial,sans-serif" font-size="${Math.round(w * 0.024)}" font-weight="500" fill="#FFFFFF" opacity="0.9">${esc([spec.phone, spec.address].filter(Boolean).join("  ·  "))}</text>`
       : ""
   }
+
+  ${(watermark ?? spec.watermark) ? watermarkFragment((watermark ?? spec.watermark)!, { w, h }) : ""}
 </svg>`;
 }
 

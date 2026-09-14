@@ -117,6 +117,8 @@ export class MockAIProvider implements AIProvider {
         return this.content(ctx);
       case PROMPT_VERSIONS.analyticsInsight:
         return this.insight(ctx);
+      case PROMPT_VERSIONS.videoScript:
+        return this.videoScript(ctx);
       default:
         throw new AiOutputInvalidError(schemaName, "mock provider has no template for this schema");
     }
@@ -249,6 +251,31 @@ export class MockAIProvider implements AIProvider {
       body: `${topic} at ${biz}. ${cta}.`,
       cta,
       hashtags: ["#local", "#" + (ctx.business?.category ?? "business").toLowerCase().replace(/\s/g, "")],
+    };
+  }
+
+  private videoScript(ctx: PromptContext) {
+    const biz = ctx.business?.name ?? "our shop";
+    const city = ctx.business?.city ?? "your area";
+    const topic = ctx.idea?.text ?? ctx.products?.[0]?.name ?? "what we make";
+    const cta = ctx.brand?.cta ?? "Come and try it";
+    const price = topic.match(RUPEE)?.[1];
+
+    return {
+      concept: `[Demo AI] A close, unhurried look at ${topic} being made at ${biz}.`,
+      hook: `This is what ${topic.split(" ").slice(0, 4).join(" ")} looks like up close 👀`,
+      shots: [
+        { order: 1, seconds: 3, visual: `Tight shot of ${topic} — the most appetising angle you have.`, onScreenText: topic.slice(0, 40) },
+        { order: 2, seconds: 5, visual: "Hands working: the step customers never get to see.", onScreenText: "Made fresh, every day" },
+        { order: 3, seconds: 4, visual: "Pull back to show the counter or shop front.", onScreenText: `${biz}, ${city}` },
+        { order: 4, seconds: 3, visual: "A customer's reaction, or the finished item held up to camera.", onScreenText: price ? `₹${price}` : cta },
+      ],
+      voiceover: `[Demo AI] Say it plainly: what it is, what's in it, and why people keep coming back for it.`,
+      caption: `${topic}${price ? ` — ₹${price}` : ""} at ${biz}, ${city}. ${cta}.`,
+      cta,
+      hashtags: ["#" + city.replace(/\s/g, ""), "#local", "#" + (ctx.business?.category ?? "food").toLowerCase().replace(/\s/g, "")],
+      durationSec: 15,
+      format: "reel" as const,
     };
   }
 

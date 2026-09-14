@@ -29,6 +29,10 @@ export function BrandForm({
     wordsToUse: string;
     wordsToAvoid: string;
     ctaPreference: string;
+    watermarkEnabled: boolean;
+    watermarkText: string;
+    watermarkPosition: string;
+    watermarkOpacity: number;
   };
 }) {
   const [state, action, pending] = useActionState(saveBrandAction.bind(null, slug), initial);
@@ -87,6 +91,44 @@ export function BrandForm({
       <Field label="Preferred call-to-action" htmlFor="ctaPreference">
         <input id="ctaPreference" name="ctaPreference" defaultValue={defaults.ctaPreference} className={inputCls} placeholder="Book on WhatsApp" />
       </Field>
+
+      <fieldset className="border-t border-line pt-5">
+        <legend className="sr-only">Watermark</legend>
+        <div className="text-[13px] font-semibold mb-1">Your mark on every creative</div>
+        <p className="text-xs text-ink-faint mb-4 max-w-[60ch]">
+          We place this on flyers and can burn it into your videos, so your posts stay yours when
+          people share them.
+        </p>
+
+        <label className="flex items-center gap-3 cursor-pointer mb-4">
+          <input type="checkbox" name="watermarkEnabled" defaultChecked={defaults.watermarkEnabled} className="peer sr-only" />
+          <span className="w-10 h-6 rounded-full bg-line-strong peer-checked:bg-leaf transition-colors relative shrink-0 after:content-[''] after:absolute after:top-1 after:left-1 after:w-4 after:h-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-4" />
+          <span className="text-sm">Add my mark to creatives</span>
+        </label>
+
+        <div className="grid sm:grid-cols-3 gap-3">
+          <Field label="Text mark" htmlFor="watermarkText" hint="Used when no logo is uploaded.">
+            <input id="watermarkText" name="watermarkText" defaultValue={defaults.watermarkText} className={inputCls} placeholder="Your business name" />
+          </Field>
+          <Field label="Position" htmlFor="watermarkPosition">
+            <select id="watermarkPosition" name="watermarkPosition" defaultValue={defaults.watermarkPosition} className={inputCls}>
+              <option value="BOTTOM_RIGHT">Bottom right</option>
+              <option value="BOTTOM_LEFT">Bottom left</option>
+              <option value="TOP_RIGHT">Top right</option>
+              <option value="TOP_LEFT">Top left</option>
+              <option value="CENTER">Centre</option>
+            </select>
+          </Field>
+          <Field label="Strength" htmlFor="watermarkOpacity">
+            <select id="watermarkOpacity" name="watermarkOpacity" defaultValue={String(defaults.watermarkOpacity)} className={inputCls}>
+              <option value="40">Subtle</option>
+              <option value="60">Medium</option>
+              <option value="75">Clear</option>
+              <option value="100">Bold</option>
+            </select>
+          </Field>
+        </div>
+      </fieldset>
 
       <button type="submit" disabled={pending} className={btnStyles.primary + " self-start"}>
         {pending ? "Saving…" : "Save brand"}

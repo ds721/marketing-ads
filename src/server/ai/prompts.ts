@@ -122,7 +122,35 @@ ${contextBlock(ctx, { idea: { text: spec.topic } })}`,
   };
 }
 
-// ── 5. Analytics analysis & optimisation (§25) ────────────────────────────
+// ── 5. Short video / Reel script (§12) ────────────────────────────────────
+
+export function videoScriptPrompt(
+  ctx: BusinessContext,
+  spec: { topic: string; format: "reel" | "story" | "short"; durationSec: number },
+) {
+  return {
+    system: `You plan short videos for a small local business owner who will film on a phone, alone, during a working day.
+
+Rules that make a plan shootable:
+- Every shot must be something that exists at this business today — their counter, their food, their chairs, their hands at work. Never a location, prop or person they don't have.
+- Keep it to ${spec.durationSec} seconds total. Shots of 2–5 seconds each.
+- The hook is the first 2 seconds and must earn the scroll-stop. No "Hi guys, welcome to".
+- On-screen text is short — a few words that read at a glance on a phone.
+- No trending-audio instructions, no dance, no actors. This is a working owner, not a creator.
+- ${spec.format === "story" ? "Stories are vertical, casual and disappear in 24 hours — keep it immediate." : "Reels are vertical and rewatchable — end on something that makes it worth a second view."}
+${brandVoice(ctx)}
+${GUARDRAILS}
+
+Return JSON: { "concept", "hook", "shots": [{ "order", "seconds", "visual", "onScreenText" }], "voiceover", "caption", "cta", "hashtags": string[], "durationSec", "format" }`,
+    prompt: `Topic: ${spec.topic}
+Format: ${spec.format}, about ${spec.durationSec} seconds.
+
+BUSINESS CONTEXT (JSON):
+${contextBlock(ctx, { idea: { text: spec.topic } })}`,
+  };
+}
+
+// ── 6. Analytics analysis & optimisation (§25) ────────────────────────────
 
 export function analyticsInsightPrompt(
   ctx: BusinessContext,

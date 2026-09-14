@@ -10,6 +10,7 @@ const NAV = [
   { seg: "dashboard", label: "Home", hue: "" },
   { seg: "calendar", label: "Calendar", hue: "text-saffron-deep" },
   { seg: "campaigns", label: "Campaigns", hue: "text-beet-deep" },
+  { seg: "videos", label: "Videos & Reels", hue: "text-chili-deep" },
   { seg: "products", label: "Products & offers", hue: "" },
   { seg: "assets", label: "Assets", hue: "text-leaf-deep" },
   { seg: "analytics", label: "Analytics", hue: "text-peacock-deep" },

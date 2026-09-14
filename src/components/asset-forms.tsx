@@ -7,7 +7,25 @@ import { FormError, FormSuccess, btnStyles } from "@/components/ui";
 
 const initial: FormState = {};
 
-export function AssetUploader({ slug }: { slug: string }) {
+const ACCEPT = {
+  all: "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime",
+  image: "image/jpeg,image/png,image/webp,image/gif",
+  video: "video/mp4,video/quicktime",
+} as const;
+
+const HINT = {
+  all: "JPG, PNG, WEBP, GIF or MP4 · up to 8 MB.",
+  image: "JPG, PNG, WEBP or GIF · up to 8 MB.",
+  video: "MP4 or MOV · up to 8 MB. Longer clips: trim them on your phone first.",
+} as const;
+
+export function AssetUploader({
+  slug,
+  accept = "all",
+}: {
+  slug: string;
+  accept?: keyof typeof ACCEPT;
+}) {
   const [state, action, pending] = useActionState(uploadAssetAction.bind(null, slug), initial);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -24,14 +42,14 @@ export function AssetUploader({ slug }: { slug: string }) {
           type="file"
           name="file"
           required
-          accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
+          accept={ACCEPT[accept]}
           className="text-sm file:mr-3 file:rounded-[10px] file:border-0 file:bg-surface file:px-4 file:py-2 file:text-sm file:font-semibold file:text-ink file:cursor-pointer"
         />
         <button type="submit" disabled={pending} className={btnStyles.tonal}>
           {pending ? "Uploading…" : "Upload"}
         </button>
       </div>
-      <span className="text-xs text-ink-faint">JPG, PNG, WEBP, GIF or MP4 · up to 8 MB.</span>
+      <span className="text-xs text-ink-faint">{HINT[accept]}</span>
     </form>
   );
 }

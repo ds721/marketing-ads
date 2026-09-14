@@ -9,6 +9,7 @@ export const PROMPT_VERSIONS = {
   monthlyStrategy: "monthly-strategy.v1",
   contentGeneration: "content-gen.v1",
   analyticsInsight: "analytics-insight.v1",
+  videoScript: "video-script.v1",
 } as const;
 
 export const PLATFORM_IDS = ["instagram", "facebook", "whatsapp", "google_business", "linkedin"] as const;
@@ -104,6 +105,34 @@ export const generatedContentSchema = z.object({
 });
 
 export type GeneratedContent = z.infer<typeof generatedContentSchema>;
+
+// ── Short video / Reel script (§12) ───────────────────────────────────────
+// We don't generate the video — we generate a plan the owner can shoot on a
+// phone: a hook, timed shots, what to say, and the caption.
+
+export const videoScriptSchema = z.object({
+  concept: z.string().min(1).max(300),
+  hook: z.string().min(1).max(200),
+  shots: z
+    .array(
+      z.object({
+        order: z.number().int().min(1).max(12),
+        seconds: z.number().int().min(1).max(30),
+        visual: z.string().min(1).max(300),
+        onScreenText: z.string().max(120).nullable(),
+      }),
+    )
+    .min(2)
+    .max(8),
+  voiceover: z.string().max(1200).nullable(),
+  caption: z.string().min(1).max(2200),
+  cta: z.string().max(160).nullable(),
+  hashtags: z.array(z.string().max(60)).max(12),
+  durationSec: z.number().int().min(5).max(90),
+  format: z.enum(["reel", "story", "short"]),
+});
+
+export type VideoScriptOutput = z.infer<typeof videoScriptSchema>;
 
 // ── Analytics insight (§25) ───────────────────────────────────────────────
 
