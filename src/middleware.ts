@@ -5,23 +5,13 @@ import { NextResponse, type NextRequest } from "next/server";
 // tenant membership) always happens server-side in src/server/tenant.ts —
 // this only saves an unauthenticated render round-trip.
 //
-// Subdomain tenant sites: {slug}.yourdomain.com rewrites to /site/{slug}.
+// Everything lives on one domain. A business's public page is markit.app/{slug},
+// served by the /[slug] route — no host parsing needed here.
 
 const PROTECTED = [/^\/app(\/|$)/, /^\/admin(\/|$)/, /^\/onboarding(\/|$)/];
 
 export function middleware(request: NextRequest) {
-  const { pathname, host } = { pathname: request.nextUrl.pathname, host: request.headers.get("host") ?? "" };
-
-  // Custom-subdomain public sites (architecture-ready; localhost keeps /site/[slug])
-  const appHost = (process.env.APPLICATION_URL ?? "").replace(/^https?:\/\//, "");
-  if (appHost && host !== appHost && host.endsWith(`.${appHost}`)) {
-    const slug = host.slice(0, -(appHost.length + 1));
-    if (slug && slug !== "www") {
-      const url = request.nextUrl.clone();
-      url.pathname = `/site/${slug}${pathname === "/" ? "" : pathname}`;
-      return NextResponse.rewrite(url);
-    }
-  }
+  const { pathname } = request.nextUrl;
 
   if (PROTECTED.some((re) => re.test(pathname))) {
     const hasSession =

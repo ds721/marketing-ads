@@ -7,6 +7,7 @@ import { db } from "@/server/db";
 import { requireUser, requireTenant, assertTenantOwns } from "@/server/tenant";
 import { audit } from "@/server/audit";
 import { slugify } from "@/lib/utils";
+import { isReservedSlug } from "@/lib/reserved-slugs";
 import { getPlan } from "@/server/plans";
 import type { FormState } from "@/server/actions/auth";
 import {
@@ -59,9 +60,11 @@ export async function createBusinessAction(_prev: FormState, formData: FormData)
     return { error: `Your plan allows ${maxBusinesses} business${maxBusinesses === 1 ? "" : "es"}. Upgrade to add more.` };
   }
 
+  // The slug becomes the business's public address (markit.app/{slug}), so it
+  // must be unique AND must not shadow a platform route.
   const base = slugify(data.name);
   let slug = base;
-  for (let i = 2; await db.tenant.findUnique({ where: { slug } }); i++) {
+  for (let i = 2; isReservedSlug(slug) || (await db.tenant.findUnique({ where: { slug } })); i++) {
     slug = `${base}-${i}`;
   }
 

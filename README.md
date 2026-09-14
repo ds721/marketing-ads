@@ -68,7 +68,7 @@ key. Everything it produces is badged **Demo AI** in the interface.
 
 ```
 src/
-  app/                    routes — (auth) · /app/[tenant] · /admin · /site/[slug]
+  app/                    routes — auth · /app/[tenant] · /admin · /[slug] (business pages)
   components/             UI primitives and forms
   lib/                    pure helpers (roles, formatting)
   server/
@@ -81,6 +81,7 @@ src/
     social/               platform adapters
     jobs/                 Postgres-backed queue, worker, handlers
     storage/              storage drivers + upload validation
+    site.ts               public business page loader + SEO metadata
     plans.ts usage.ts     entitlements; no limit is hardcoded elsewhere
 ```
 
@@ -108,10 +109,10 @@ npm test
 npm run build
 ```
 
-65 tests cover tenant isolation, role permissions, AI schema validation and the
+76 tests cover tenant isolation, role permissions, AI schema validation and the
 anti-invention guardrails, token encryption, upload sniffing, plan limits, form
-input handling, video planning, brand watermarking, and the full "one sentence →
-reviewable campaign" scenario.
+input handling, video planning, brand watermarking, route-collision safety, and
+the full "one sentence → reviewable campaign" scenario.
 
 Video tests that need ffmpeg skip themselves where it isn't installed.
 
@@ -147,8 +148,22 @@ cron or worker process:
 curl -X POST https://your-host/api/jobs/tick -H "Authorization: Bearer $JOBS_TICK_SECRET"
 ```
 
-## Public tenant sites
+## Public business pages
 
-Each business gets a public page at `/site/{slug}` with SEO metadata, Open Graph
-tags, LocalBusiness JSON-LD and a sitemap entry. With a wildcard DNS record the
-middleware serves the same page at `{slug}.yourdomain.com`.
+Everything runs on one domain. Each business's public page is its slug at the
+root:
+
+```
+markit.app/glow-salon
+markit.app/spice-house
+```
+
+Each page carries SEO metadata, Open Graph tags, LocalBusiness JSON-LD, a
+canonical URL and a sitemap entry. `/site/{slug}` permanently redirects to the
+new address so older links keep working.
+
+Because business pages sit at the root, a slug must never shadow a platform
+route. `src/lib/reserved-slugs.ts` is the single list, enforced when a tenant is
+created — and a test walks every top-level directory under `src/app` and fails
+if a route exists that isn't reserved, so adding a route without reserving its
+name can't slip through.

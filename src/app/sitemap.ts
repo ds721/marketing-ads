@@ -12,7 +12,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     { url: base, lastModified: new Date(), priority: 1 },
     ...tenants.map((t) => ({
-      url: `${base}/site/${t.slug}`,
+      url: `${base}/${t.slug}`,
       lastModified: t.updatedAt,
       priority: 0.8,
     })),
