@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser, listUserTenants } from "@/server/tenant";
+import { db } from "@/server/db";
 import { Card, btnStyles } from "@/components/ui";
 import { signOut } from "@/server/auth";
 
@@ -10,7 +11,15 @@ export default async function BusinessPickerPage() {
   const user = await requireUser();
   const memberships = await listUserTenants(user.id);
 
-  if (memberships.length === 0) redirect("/onboarding");
+  if (memberships.length === 0) {
+    // A platform admin isn't a customer — they operate the platform and may
+    // own no business at all. Sending them to "create your business" is wrong.
+    const account = await db.user.findUnique({
+      where: { id: user.id },
+      select: { isPlatformAdmin: true },
+    });
+    redirect(account?.isPlatformAdmin ? "/admin" : "/onboarding");
+  }
   if (memberships.length === 1) redirect(`/app/${memberships[0]!.tenant.slug}/dashboard`);
 
   return (

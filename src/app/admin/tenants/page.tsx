@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { db } from "@/server/db";
 import { getPlan } from "@/server/plans";
 import { Card, Pill } from "@/components/ui";
@@ -36,8 +37,13 @@ export default async function AdminTenants() {
             {tenants.map((t) => (
               <tr key={t.id} className="border-b border-line last:border-0">
                 <td className="px-4 py-3">
-                  <div className="font-semibold">{t.name}</div>
-                  <div className="text-xs text-ink-faint">{t.slug}</div>
+                  <Link
+                    href={`/admin/tenants/${t.id}`}
+                    className="font-semibold text-beet hover:underline"
+                  >
+                    {t.name}
+                  </Link>
+                  <div className="text-xs text-ink-faint">/{t.slug}</div>
                 </td>
                 <td className="px-4 py-3 text-ink-soft">{t.members[0]?.user.email ?? "—"}</td>
                 <td className="px-4 py-3">{getPlan(t.planId).name}</td>
