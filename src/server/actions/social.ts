@@ -3,48 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db";
 import { requireTenant, assertTenantOwns } from "@/server/tenant";
-import { getAdapter } from "@/server/social";
 import { audit } from "@/server/audit";
-import { checkEntitlement } from "@/server/usage";
-import { UsageLimitError } from "@/server/usage";
 import { enqueue } from "@/server/jobs/queue";
 import type { FormState } from "@/server/actions/auth";
-
-/**
- * Starts the OAuth handshake for a platform. We never take a password — and
- * when the deployment has no approved app for that platform, we say so
- * instead of opening a flow that can't complete (§21).
- */
-export async function beginConnectAction(slug: string, provider: string): Promise<FormState> {
-  const ctx = await requireTenant(slug, "ADMIN");
-  const adapter = getAdapter(provider);
-
-  if (!adapter.isConfigured()) {
-    return {
-      error: `${adapter.name} isn't available on this deployment yet. It needs an approved ${adapter.name} app — ask your administrator to add the credentials.`,
-    };
-  }
-
-  try {
-    await checkEntitlement(ctx.tenant.id, "connected_accounts");
-  } catch (err) {
-    if (err instanceof UsageLimitError) {
-      return { error: "You've connected all the accounts your plan allows. Upgrade to add more." };
-    }
-    throw err;
-  }
-
-  await audit({
-    tenantId: ctx.tenant.id,
-    userId: ctx.userId,
-    action: "social.connect_start",
-    meta: { provider },
-  });
-
-  // The provider's OAuth redirect is issued by /api/social/[provider]/start
-  // once the platform app credentials are present.
-  return { ok: true, message: `Redirecting you to ${adapter.name}…` };
-}
 
 export async function disconnectAccountAction(slug: string, accountId: string): Promise<void> {
   const ctx = await requireTenant(slug, "ADMIN");

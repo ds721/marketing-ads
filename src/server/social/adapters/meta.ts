@@ -6,6 +6,7 @@ import {
   type PublishResult,
 } from "@/server/social/types";
 import { log } from "@/server/logger";
+import { isMetaConfigured } from "@/server/social/meta-oauth";
 
 // Meta Graph API adapter for Instagram and Facebook Pages.
 // Requires an approved Meta app (META_APP_ID / META_APP_SECRET) plus a tenant
@@ -57,7 +58,7 @@ class MetaAdapter implements PlatformAdapter {
   ) {}
 
   isConfigured(): boolean {
-    return Boolean(process.env.META_APP_ID && process.env.META_APP_SECRET);
+    return isMetaConfigured();
   }
 
   async publish(input: PublishInput): Promise<PublishResult> {
