@@ -48,7 +48,8 @@ export function campaignProposalPrompt(
   ideaText: string,
   facts: Record<string, string | null>,
 ) {
-  const channels = ctx.platforms.length ? ctx.platforms : ["instagram", "facebook"];
+  // Instagram first. Other channels only when the tenant has connected them.
+  const channels = ctx.platforms.length ? ctx.platforms : ["instagram"];
   return {
     system: `You are the marketing lead for a small local business. Turn the owner's idea into a complete, ready-to-review campaign.
 

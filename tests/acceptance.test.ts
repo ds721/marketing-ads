@@ -68,17 +68,20 @@ describe("end-to-end: one sentence becomes a reviewable campaign", () => {
     expect(facts.daysOrTimes).toBe("Saturday & Sunday");
   });
 
-  it("creates platform-specific content, all scoped to this tenant", async () => {
+  it("creates an Instagram post and story, all scoped to this tenant", async () => {
     const items = await db.contentItem.findMany({ where: { campaignId, tenantId } });
-    expect(items.length).toBeGreaterThan(2);
+    expect(items.length).toBeGreaterThanOrEqual(2);
     expect(items.every((i) => i.tenantId === tenantId)).toBe(true);
     expect(items.every((i) => i.status === "NEEDS_REVIEW")).toBe(true);
     expect(items.every((i) => i.aiGenerated)).toBe(true);
     // Recorded provenance so we can trace what wrote what (§41).
     expect(items.every((i) => i.promptVersion && i.generatedBy)).toBe(true);
 
-    const platforms = new Set(items.map((i) => i.platform));
-    expect(platforms.size).toBeGreaterThan(1);
+    // Instagram first: nothing is drafted for a platform that isn't connected.
+    expect(items.every((i) => i.platform === "instagram")).toBe(true);
+    const types = new Set(items.map((i) => i.contentType));
+    expect(types.has("POST")).toBe(true);
+    expect(types.has("STORY")).toBe(true);
   });
 
   it("never introduces a price the owner didn't state", async () => {

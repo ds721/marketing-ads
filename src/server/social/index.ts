@@ -1,9 +1,8 @@
-import { instagramAdapter, facebookAdapter } from "@/server/social/adapters/meta";
+import { instagramAdapter } from "@/server/social/adapters/instagram";
 import { PlatformNotConfiguredError, type PlatformAdapter } from "@/server/social/types";
 
-// Platforms the product knows about. Those without an adapter yet are listed
-// so the integrations page can show an honest "not available yet" state
-// rather than a Connect button that goes nowhere.
+// Instagram is the platform we're building for first. The others are listed
+// so the integrations page can say "later" honestly rather than hide them.
 
 class UnavailableAdapter implements PlatformAdapter {
   constructor(
@@ -20,7 +19,7 @@ class UnavailableAdapter implements PlatformAdapter {
 
 export const ADAPTERS: Record<string, PlatformAdapter> = {
   instagram: instagramAdapter,
-  facebook: facebookAdapter,
+  facebook: new UnavailableAdapter("facebook", "Facebook"),
   whatsapp: new UnavailableAdapter("whatsapp", "WhatsApp"),
   google_business: new UnavailableAdapter("google_business", "Google Business"),
   linkedin: new UnavailableAdapter("linkedin", "LinkedIn"),
@@ -37,15 +36,14 @@ export interface PlatformStatus {
   name: string;
   /** A real adapter exists — the product can publish here once configured. */
   supported: boolean;
-  /** Platform OAuth app credentials exist on this deployment. */
+  /** Platform app credentials exist on this deployment. */
   available: boolean;
   /** What the platform operator must set for this to go live. */
   requiredEnv: string[];
 }
 
 const REQUIRED_ENV: Record<string, string[]> = {
-  instagram: ["META_APP_ID", "META_APP_SECRET"],
-  facebook: ["META_APP_ID", "META_APP_SECRET"],
+  instagram: ["INSTAGRAM_APP_ID", "INSTAGRAM_APP_SECRET"],
 };
 
 export function platformStatuses(): PlatformStatus[] {

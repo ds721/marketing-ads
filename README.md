@@ -56,7 +56,8 @@ isn't configured, the app says so rather than faking a result.
 | Video plans (Reels/Stories) | Real — shot lists, hooks and captions, schema-validated |
 | Video watermarking & posters | Real via ffmpeg; says so plainly when ffmpeg is absent |
 | Asset storage | Real on local disk; S3 driver is an interface, not implemented |
-| Publishing | Real: Meta OAuth connect flow + Graph publishing — needs your Meta app (see "Connecting Instagram") |
+| Instagram publishing | Real: Instagram Login connect flow, token refresh, two-step Graph publish — needs your app (see "Connecting Instagram") |
+| Facebook / WhatsApp / Google Business / LinkedIn | Listed as "Coming later"; no adapter yet |
 | WhatsApp / Google Business / LinkedIn | Shown as "coming soon"; no adapter yet |
 | Analytics | Schema and dashboard real; numbers appear once a platform is connected |
 | Billing | Plans and entitlements enforced; no payment provider wired |
@@ -109,7 +110,7 @@ npm test
 npm run build
 ```
 
-95 tests cover tenant isolation, role permissions, AI schema validation and the
+99 tests cover tenant isolation, role permissions, AI schema validation and the
 anti-invention guardrails, token encryption, upload sniffing, plan limits, form
 input handling, video planning, brand watermarking, route-collision safety,
 OAuth state forgery, admin revenue rules, and the full "one sentence →
@@ -119,49 +120,68 @@ Video tests that need ffmpeg skip themselves where it isn't installed.
 
 ## Connecting Instagram
 
-Instagram and Facebook connect through one Meta app, via Facebook Login. No
-passwords pass through Markit; the owner consents on Facebook's own page and we
-store the resulting Page token encrypted.
+Markit connects Instagram directly through **Instagram Login** — the owner
+taps Connect, approves on Instagram, done. No Facebook Page, no Facebook
+account. We never see a password; we store a 60-day token, encrypted, and
+renew it automatically before it lapses.
 
-### One-time: create the Meta app (you, the platform operator)
+### One-time: create the app (you, the platform operator — ~15 min)
 
-1. Go to https://developers.facebook.com/apps → **Create App** → type **Business**.
-2. Add the **Facebook Login for Business** product.
-3. Under *Facebook Login → Settings*, add the redirect URI:
-   ```
-   https://your-domain.com/api/social/meta/callback
-   ```
-   (and `http://localhost:3000/api/social/meta/callback` for development).
-4. Copy **App ID** and **App Secret** into `.env` as `META_APP_ID` / `META_APP_SECRET`.
-5. Submit for **App Review** requesting these permissions:
-   `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`,
-   `instagram_basic`, `instagram_content_publish`, `business_management`.
+1. https://developers.facebook.com/apps → **Create App** → use case *Other* → type **Business**.
+2. On the dashboard, add the **Instagram** product.
+3. Open **Instagram → API setup with Instagram login**. Two things live here:
+   - **Instagram App ID** and **Instagram App Secret** — copy these into `.env`
+     as `INSTAGRAM_APP_ID` / `INSTAGRAM_APP_SECRET`. (Not the Facebook App ID
+     at the top of the dashboard — the Instagram-specific ones on this page.)
+   - **Business login settings → OAuth redirect URIs** — add
+     `https://your-domain.com/api/social/instagram/callback`
+     (and `http://localhost:3000/api/social/instagram/callback` for development).
+4. Restart the server. `/admin` → *Platform setup* shows **Instagram publishing: Clients can connect**.
 
-   Until review passes, the app is in Development mode and only people you add
-   as testers in the Meta dashboard can connect. Review typically takes 1–3
-   weeks and requires a screencast of the flow — start it early.
+### While the app is in Development mode
 
-### Every time: what a business owner needs (their side)
+Only Instagram accounts you've added as testers can connect. On the same
+*API setup* page, **Add or remove Instagram testers** → enter their username.
+They accept in the Instagram app: *Settings → Website permissions → Tester invites*.
 
-- An Instagram **Business or Creator** account — Instagram does not allow any
-  app to post to a Personal account.
-- A **Facebook Page** they administer, linked to that Instagram account
-  (Instagram app → Settings → Business tools → Connect a Facebook Page).
+### Go public: App Review
 
-Then: Integrations → **Connect** → approve on Facebook → done. Connecting
-Facebook also connects every Instagram account linked to those Pages. Tokens
-are long-lived Page tokens and do not expire on a schedule; if Meta invalidates
-one (password change, permission removed), the account shows **Needs
-reconnecting** and scheduled posts to it pause instead of failing silently.
+**Instagram → App Review → Permissions and features** → request
+`instagram_business_basic` and `instagram_business_content_publish`. Meta asks
+for a screen recording of the connect flow and a post going out. Approval
+takes 1–3 weeks; start it as soon as the flow works for one tester. Once
+approved, switch the app to **Live** and any owner can connect.
+
+### What the business owner needs
+
+One thing: an Instagram **Business or Creator** account. Instagram does not
+allow any app to post to a Personal account. Switching is free and takes 30
+seconds in the Instagram app (*Settings → Account type and tools → Switch to
+professional account*). The Integrations page says this before they click
+Connect, and the callback refuses a Personal account with the same
+explanation rather than storing a token that can never publish.
+
+### How publishing works
+
+Instagram fetches a post's image from a URL. The tenant's asset library is
+private, so the worker mints a signed link (`/api/public-assets/{id}?exp&sig`)
+valid for one hour and for that one asset only, and hands it to Instagram.
+Nothing else in the library is reachable.
 
 ### How the flow protects tenants
 
-`/api/social/{provider}/start` checks the caller is an admin of the tenant,
-that the plan has headroom for another account, and signs a state token bound
-to that tenant. `/api/social/meta/callback` verifies the signature and a
-matching cookie, re-checks admin membership, and only then exchanges the code.
-A forged callback cannot attach an account to a business the caller doesn't
-control — `tests/oauth.test.ts` covers this.
+`/api/social/instagram/start` checks the caller is an admin of the tenant,
+that Instagram is configured, and that the plan has headroom, then signs a
+state token bound to that tenant. `/api/social/instagram/callback` verifies
+the signature and a matching cookie, re-checks admin membership, and only
+then exchanges the code. `tests/instagram.test.ts` covers forgery, expiry,
+Personal-account refusal and asset-link tampering.
+
+### Facebook, WhatsApp, Google Business, LinkedIn
+
+Later. They're listed on the Integrations page as *Coming later* so owners
+aren't misled. Markit still writes and plans content for them; the owner
+posts it manually until an adapter exists.
 
 ## Video
 

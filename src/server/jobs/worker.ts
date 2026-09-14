@@ -59,6 +59,16 @@ export async function enqueueDueContent(): Promise<number> {
   return due.length;
 }
 
+/** Queues the daily token-refresh pass if one hasn't run in the last day. */
+export async function enqueueDailyMaintenance(): Promise<void> {
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const recent = await db.job.findFirst({
+    where: { type: "refresh_tokens", createdAt: { gte: dayAgo } },
+    select: { id: true },
+  });
+  if (!recent) await enqueue({ type: "refresh_tokens", payload: {}, maxAttempts: 2 });
+}
+
 let interval: NodeJS.Timeout | null = null;
 
 /** Dev convenience: poll every 30s inside the Next.js server process. */
@@ -66,6 +76,7 @@ export function startInProcessWorker(): void {
   if (interval || process.env.JOBS_ENABLED !== "true") return;
   interval = setInterval(async () => {
     try {
+      await enqueueDailyMaintenance();
       await enqueueDueContent();
       const n = await tick();
       if (n > 0) log.info({ operation: "worker.tick", status: "ok", processed: n });

@@ -14,7 +14,7 @@ const NAV = [
   { seg: "products", label: "Products & offers", hue: "" },
   { seg: "assets", label: "Assets", hue: "text-leaf-deep" },
   { seg: "analytics", label: "Analytics", hue: "text-peacock-deep" },
-  { seg: "integrations", label: "Integrations", hue: "" },
+  { seg: "integrations", label: "Instagram", hue: "" },
   { seg: "brand", label: "Brand", hue: "" },
   { seg: "settings", label: "Settings", hue: "", minRole: "ADMIN" as TenantRole },
 ];

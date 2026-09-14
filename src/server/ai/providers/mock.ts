@@ -164,7 +164,7 @@ export class MockAIProvider implements AIProvider {
     const price = text.match(RUPEE)?.[1];
     const priceLabel = price ? `₹${price}` : null;
     const subject = text.split(/[.,\n]/)[0]?.trim() || "our latest offer";
-    const channels = (ctx.platforms?.length ? ctx.platforms : ["instagram", "facebook"]).slice(0, 4);
+    const channels = (ctx.platforms?.length ? ctx.platforms : ["instagram"]).slice(0, 4);
     const window = weekendWindow(text);
 
     const line = (p: string) => {
@@ -216,7 +216,7 @@ export class MockAIProvider implements AIProvider {
     const products = (ctx.products ?? []).map((p) => p.name).filter(Boolean) as string[];
     const goal = ctx.goals?.[0] ?? "Increase customers";
     const platform = (ctx.platforms?.[0] ?? "instagram") as string;
-    const second = (ctx.platforms?.[1] ?? "facebook") as string;
+    const second = (ctx.platforms?.[1] ?? platform) as string;
     const topicFor = (i: number) => products[i % Math.max(products.length, 1)] ?? "what we do best";
 
     const themes = [

@@ -3,15 +3,9 @@ import { cookies } from "next/headers";
 import { requireTenant, TenantAccessError } from "@/server/tenant";
 import { checkEntitlement, UsageLimitError } from "@/server/usage";
 import { audit } from "@/server/audit";
-import {
-  isMetaConfigured,
-  signState,
-  authorizationUrl,
-} from "@/server/social/meta-oauth";
+import { isInstagramConfigured, signState, authorizationUrl } from "@/server/social/instagram-oauth";
 
 export const dynamic = "force-dynamic";
-
-const META_PROVIDERS = new Set(["instagram", "facebook"]);
 
 function back(base: string, slug: string, error?: string) {
   const url = new URL(`/app/${slug}/integrations`, base);
@@ -20,11 +14,11 @@ function back(base: string, slug: string, error?: string) {
 }
 
 /**
- * Starts the OAuth handshake. Everything that could go wrong is decided here,
- * before the owner leaves the app, so they never bounce off Meta confused.
+ * Starts the Instagram connection. Everything that could go wrong is decided
+ * here, before the owner leaves the app, so they never bounce off Instagram
+ * confused.
  */
-export async function GET(request: Request, { params }: { params: Promise<{ provider: string }> }) {
-  const { provider } = await params;
+export async function GET(request: Request) {
   const base = process.env.APPLICATION_URL ?? new URL(request.url).origin;
   const slug = new URL(request.url).searchParams.get("tenant") ?? "";
   if (!slug) return NextResponse.redirect(new URL("/app", base));
@@ -37,8 +31,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
     throw err;
   }
 
-  if (!META_PROVIDERS.has(provider)) return back(base, slug, "unsupported");
-  if (!isMetaConfigured()) return back(base, slug, "not_configured");
+  if (!isInstagramConfigured()) return back(base, slug, "not_configured");
 
   try {
     await checkEntitlement(ctx.tenant.id, "connected_accounts");
@@ -47,7 +40,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
     throw err;
   }
 
-  const state = signState({ tenantSlug: slug, provider: provider as "instagram" | "facebook" });
+  const state = signState({ tenantSlug: slug });
 
   // The state also lives in a cookie so the callback can confirm the same
   // browser that started the flow is finishing it.
@@ -64,7 +57,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
     tenantId: ctx.tenant.id,
     userId: ctx.userId,
     action: "social.connect_start",
-    meta: { provider },
+    meta: { provider: "instagram" },
   });
 
   return NextResponse.redirect(authorizationUrl(state));

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { tick, enqueueDueContent } from "@/server/jobs/worker";
+import { tick, enqueueDueContent, enqueueDailyMaintenance } from "@/server/jobs/worker";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +15,7 @@ export async function POST(request: Request) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
   }
+  await enqueueDailyMaintenance();
   const queued = await enqueueDueContent();
   const processed = await tick(25);
   return NextResponse.json({ queued, processed });

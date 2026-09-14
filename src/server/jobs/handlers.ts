@@ -1,5 +1,7 @@
 import { db } from "@/server/db";
-import { decryptSecret } from "@/server/crypto";
+import { decryptSecret, encryptSecret } from "@/server/crypto";
+import { publicAssetUrl } from "@/server/public-assets";
+import { refreshLongLivedToken, isInstagramConfigured } from "@/server/social/instagram-oauth";
 import { getAdapter } from "@/server/social";
 import { PlatformAuthError, PlatformNotConfiguredError } from "@/server/social/types";
 import { recordUsage, checkEntitlement } from "@/server/usage";
@@ -66,10 +68,14 @@ async function publishContent(job: Job): Promise<void> {
       .filter(Boolean)
       .join("\n\n");
 
+    // Instagram fetches the image itself, so it needs a link it can reach.
+    // The link is signed and expires — the asset isn't made public for good.
+    const mediaUrl = item.assetId ? publicAssetUrl(item.assetId) : null;
+
     const result = await adapter.publish({
       contentItemId: item.id,
       text: caption,
-      mediaUrl: null,
+      mediaUrl,
       accessToken: decryptSecret(account.accessTokenEnc),
       accountId: account.accountId,
     });
@@ -121,21 +127,45 @@ async function publishContent(job: Job): Promise<void> {
   }
 }
 
-/** Flags connections nearing expiry so the owner can reconnect before a post fails. */
+/**
+ * Instagram tokens last 60 days and can be renewed once they're at least a
+ * day old. Renew anything inside the last 10 days; only if renewal fails do
+ * we mark it expired and ask the owner to reconnect.
+ */
 async function refreshTokens(): Promise<void> {
-  const soon = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+  const soon = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
   const expiring = await db.socialAccount.findMany({
     where: { status: "CONNECTED", expiresAt: { not: null, lte: soon } },
   });
 
   for (const account of expiring) {
+    if (account.provider === "instagram" && isInstagramConfigured()) {
+      try {
+        const renewed = await refreshLongLivedToken(decryptSecret(account.accessTokenEnc));
+        await db.socialAccount.update({
+          where: { id: account.id },
+          data: { accessTokenEnc: encryptSecret(renewed.accessToken), expiresAt: renewed.expiresAt },
+        });
+        log.info({ operation: "social.token_refresh", tenantId: account.tenantId, provider: "instagram", status: "ok" });
+        continue;
+      } catch (err) {
+        log.error({
+          operation: "social.token_refresh",
+          tenantId: account.tenantId,
+          provider: "instagram",
+          status: "error",
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
     await db.socialAccount.update({ where: { id: account.id }, data: { status: "EXPIRED" } });
     await db.notification.create({
       data: {
         tenantId: account.tenantId,
         kind: "connection_expired",
         title: `Reconnect ${account.provider.replace("_", " ")}`,
-        body: "Your connection is about to expire. Reconnect it so scheduled posts keep going out.",
+        body: "Your connection has expired. Reconnect it so scheduled posts keep going out.",
         href: `/app/_/integrations`,
       },
     });
