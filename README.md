@@ -53,6 +53,8 @@ isn't configured, the app says so rather than faking a result.
 | Business brain, strategy, campaigns, calendar | Real |
 | AI generation | Real with `AI_PROVIDER=openai`; `mock` is a labelled dev stub |
 | Flyer rendering | Real — deterministic SVG, no model involved |
+| Video plans (Reels/Stories) | Real — shot lists, hooks and captions, schema-validated |
+| Video watermarking & posters | Real via ffmpeg; says so plainly when ffmpeg is absent |
 | Asset storage | Real on local disk; S3 driver is an interface, not implemented |
 | Publishing | Real Meta Graph adapter — needs an approved Meta app to connect |
 | WhatsApp / Google Business / LinkedIn | Shown as "coming soon"; no adapter yet |
@@ -74,6 +76,8 @@ src/
     ai/                   provider abstraction, model router, prompts, schemas
     marketing/            ideas → campaigns, strategy, content, insights
     creative/flyer.ts     deterministic text rendering
+    creative/watermark.ts brand mark compositing
+    creative/media.ts     ffmpeg probe, poster frames, video watermark
     social/               platform adapters
     jobs/                 Postgres-backed queue, worker, handlers
     storage/              storage drivers + upload validation
@@ -104,9 +108,33 @@ npm test
 npm run build
 ```
 
-41 tests cover tenant isolation, role permissions, AI schema validation and the
-anti-invention guardrails, token encryption, upload sniffing, plan limits, and
-the full "one sentence → reviewable campaign" scenario.
+65 tests cover tenant isolation, role permissions, AI schema validation and the
+anti-invention guardrails, token encryption, upload sniffing, plan limits, form
+input handling, video planning, brand watermarking, and the full "one sentence →
+reviewable campaign" scenario.
+
+Video tests that need ffmpeg skip themselves where it isn't installed.
+
+## Video
+
+Reels are how most people find local businesses now, but a shop owner can't
+produce a studio video. So Markit produces what they can act on: a shootable
+plan — a hook, a timed shot list, what to say, and the caption. Owners upload
+clips they already have, and any video can carry the brand mark.
+
+Watermarking (logo image or text, position and strength configurable) is
+composited into flyers as SVG and burned into videos with ffmpeg. Originals are
+never overwritten — a branded copy is stored alongside, so changing the logo and
+re-running is safe.
+
+ffmpeg is an optional host dependency. Without it, uploads and every other
+feature still work; the app says plainly that video branding is unavailable
+rather than skipping the mark silently.
+
+```bash
+brew install ffmpeg    # macOS
+apt install ffmpeg     # Debian/Ubuntu
+```
 
 ## Background jobs
 
