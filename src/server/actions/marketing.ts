@@ -234,3 +234,21 @@ export async function generateStrategyAction(slug: string, _prev: FormState): Pr
   revalidatePath(`/app/${slug}/dashboard`);
   return { ok: true, message: "Your plan for this month is ready." };
 }
+
+// ── Insights (§25) ────────────────────────────────────────────────────────
+
+export async function generateInsightsAction(slug: string, _prev: FormState): Promise<FormState> {
+  const ctx = await requireTenant(slug, "ADMIN");
+  try {
+    const { generateInsights } = await import("@/server/marketing/insights");
+    const count = await generateInsights({ tenantId: ctx.tenant.id, userId: ctx.userId });
+    if (count === 0) {
+      return { error: "There aren't enough published results to analyse yet. Publish a few posts first." };
+    }
+  } catch (err) {
+    return { error: friendly(err, "insights.generate", ctx.tenant.id) };
+  }
+  revalidatePath(`/app/${slug}/analytics`);
+  revalidatePath(`/app/${slug}/dashboard`);
+  return { ok: true, message: "Here's what I found." };
+}
