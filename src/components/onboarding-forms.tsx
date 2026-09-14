@@ -45,8 +45,11 @@ export function CreateBusinessForm() {
           <input id="phone" name="phone" className={inputCls} placeholder="+91 98…" />
         </Field>
       </div>
-      <Field label="Website (optional)" htmlFor="website">
-        <input id="website" name="website" type="url" className={inputCls} placeholder="https://…" />
+      <Field label="Email (optional)" htmlFor="bizEmail" hint="Where customers can reach you — shown on your public page.">
+        <input id="bizEmail" name="email" type="email" className={inputCls} placeholder="hello@glowsalon.com" />
+      </Field>
+      <Field label="Website (optional)" htmlFor="website" hint="No need for https:// — glowsalon.com works.">
+        <input id="website" name="website" type="text" inputMode="url" className={inputCls} placeholder="glowsalon.com" />
       </Field>
       <Field label="Address (optional)" htmlFor="address">
         <input id="address" name="address" className={inputCls} />

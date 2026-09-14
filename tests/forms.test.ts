@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import "./setup";
 import { z } from "zod";
 import {
+  requiredText,
   optionalPrice,
   optionalUrl,
   optionalEmail,
@@ -26,6 +27,46 @@ describe("optional fields accept a blank input", () => {
 
   it("trims surrounding whitespace", () => {
     expect(optionalText(80, "City").parse("  Chennai  ")).toBe("Chennai");
+  });
+});
+
+describe("a field the form doesn't render", () => {
+  // Regression: createBusinessSchema expected `email`, the form had no email
+  // input, so FormData.get("email") returned null and onboarding failed with
+  // "Email isn't valid" pointing at a field the owner could not see.
+  it("treats a null (absent input) exactly like a blank one", () => {
+    expect(optionalText(80, "City").parse(null)).toBeUndefined();
+    expect(optionalPhone().parse(null)).toBeUndefined();
+    expect(optionalUrl().parse(null)).toBeUndefined();
+    expect(optionalEmail().parse(null)).toBeUndefined();
+    expect(optionalPrice().parse(null)).toBeUndefined();
+  });
+
+  it("parses a whole form payload with several inputs missing", () => {
+    const schema = z.object({
+      name: requiredText(2, 120, "Business name"),
+      city: optionalText(80, "City"),
+      phone: optionalPhone(),
+      website: optionalUrl(),
+      email: optionalEmail(),
+    });
+    // What FormData.get() yields when only the name input exists.
+    const result = schema.safeParse({
+      name: "Glow Salon",
+      city: null,
+      phone: null,
+      website: null,
+      email: null,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toEqual({ name: "Glow Salon" });
+  });
+
+  it("still reports a genuinely missing required field clearly", () => {
+    const schema = z.object({ name: requiredText(2, 120, "Business name") });
+    const result = schema.safeParse({ name: null });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(firstError(result.error)).toMatch(/business name/i);
   });
 });
 

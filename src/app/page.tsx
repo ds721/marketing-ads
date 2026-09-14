@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { getSessionUser } from "@/server/tenant";
 import { PLANS } from "@/server/plans";
 import { btnStyles } from "@/components/ui";
@@ -45,8 +44,10 @@ const PLAN_POINTS: Record<string, string[]> = {
 };
 
 export default async function LandingPage() {
+  // The landing page stays reachable when signed in — people share this link,
+  // and bouncing a logged-in owner into onboarding makes the site look broken.
+  // The header adapts instead.
   const user = await getSessionUser();
-  if (user) redirect("/app");
 
   const plans = (["starter", "growth", "pro"] as const).map((id) => ({
     id,
@@ -69,12 +70,20 @@ export default async function LandingPage() {
           <a href="#pricing" className="hidden sm:inline text-sm font-semibold text-ink-soft hover:text-ink px-3 py-2">
             Pricing
           </a>
-          <Link href="/login" className={btnStyles.ghost}>
-            Log in
-          </Link>
-          <Link href="/register" className={btnStyles.primary}>
-            Get started
-          </Link>
+          {user ? (
+            <Link href="/app" className={btnStyles.primary}>
+              Go to my dashboard
+            </Link>
+          ) : (
+            <>
+              <Link href="/login" className={btnStyles.ghost}>
+                Log in
+              </Link>
+              <Link href="/register" className={btnStyles.primary}>
+                Get started
+              </Link>
+            </>
+          )}
         </nav>
       </header>
 
@@ -92,8 +101,8 @@ export default async function LandingPage() {
           rest, and waits for your OK before anything goes out.
         </p>
         <div className="flex flex-wrap gap-3 mt-8">
-          <Link href="/register" className={btnStyles.idea}>
-            Start marketing my business
+          <Link href={user ? "/app" : "/register"} className={btnStyles.idea}>
+            {user ? "Go to my dashboard" : "Start marketing my business"}
           </Link>
           <a href="#how" className={btnStyles.secondary + " px-6 py-3 text-[15px]"}>
             See how it works
@@ -177,8 +186,8 @@ export default async function LandingPage() {
             finish your coffee.
           </p>
           <div className="flex justify-center mt-8">
-            <Link href="/register" className={btnStyles.idea}>
-              Start marketing my business
+            <Link href={user ? "/app" : "/register"} className={btnStyles.idea}>
+              {user ? "Go to my dashboard" : "Start marketing my business"}
             </Link>
           </div>
         </div>
@@ -193,8 +202,14 @@ export default async function LandingPage() {
             Built for small businesses in India. Prices in ₹, GST extra.
           </p>
           <div className="flex gap-4 text-[13px] text-ink-soft">
-            <Link href="/login" className="hover:text-ink">Log in</Link>
-            <Link href="/register" className="hover:text-ink">Get started</Link>
+            {user ? (
+              <Link href="/app" className="hover:text-ink">My dashboard</Link>
+            ) : (
+              <>
+                <Link href="/login" className="hover:text-ink">Log in</Link>
+                <Link href="/register" className="hover:text-ink">Get started</Link>
+              </>
+            )}
           </div>
         </div>
       </footer>

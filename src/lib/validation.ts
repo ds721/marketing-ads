@@ -6,79 +6,100 @@ import { z } from "zod";
 // fails validation, or worse, coerces into a real value (a blank price
 // becoming ₹0 and going out on a flyer as "free").
 
+/**
+ * FormData.get() returns null for an input the form doesn't render — a schema
+ * field with no matching input, a disabled control, a checkbox left unticked.
+ * Treat that exactly like a blank box, so a missing input can never surface as
+ * "Email isn't valid" on a field the owner cannot see.
+ */
+const fromForm = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((v) => (v === null || v === undefined ? "" : v), schema);
+
 /** Trims, then turns "" into undefined so `.optional()` behaves as expected. */
 export const optionalText = (max: number, label: string) =>
-  z
-    .string()
+  fromForm(
+    z
+      .string()
     .trim()
-    .max(max, `${label} is too long (max ${max} characters).`)
-    .transform((v) => (v === "" ? undefined : v))
-    .optional();
+      .max(max, `${label} is too long (max ${max} characters).`)
+      .transform((v) => (v === "" ? undefined : v))
+      .optional(),
+  ) as z.ZodType<string | undefined>;
 
 export const requiredText = (min: number, max: number, label: string) =>
-  z
-    .string()
+  fromForm(
+    z
+      .string()
     .trim()
-    .min(min, min === 1 ? `${label} is required.` : `${label} needs at least ${min} characters.`)
-    .max(max, `${label} is too long (max ${max} characters).`);
+      .min(min, min === 1 ? `${label} is required.` : `${label} needs at least ${min} characters.`)
+      .max(max, `${label} is too long (max ${max} characters).`),
+  ) as z.ZodType<string>;
 
 /**
  * Money from a form. Blank means "no price" — never zero, because a product
  * priced at ₹0 would be advertised as free.
  */
 export const optionalPrice = (label = "Price") =>
-  z
-    .string()
+  fromForm(
+    z
+      .string()
     .trim()
-    .transform((v) => v.replace(/[,₹\s]/g, ""))
-    .refine((v) => v === "" || !Number.isNaN(Number(v)), `${label} should be a number, like 199.`)
-    .refine((v) => v === "" || Number(v) >= 0, `${label} can't be negative.`)
-    .refine((v) => v === "" || Number(v) <= 10_000_000, `${label} looks too large.`)
-    .transform((v) => (v === "" ? undefined : Number(v)))
-    .optional();
+      .transform((v) => v.replace(/[,₹\s]/g, ""))
+      .refine((v) => v === "" || !Number.isNaN(Number(v)), `${label} should be a number, like 199.`)
+      .refine((v) => v === "" || Number(v) >= 0, `${label} can't be negative.`)
+      .refine((v) => v === "" || Number(v) <= 10_000_000, `${label} looks too large.`)
+      .transform((v) => (v === "" ? undefined : Number(v)))
+      .optional(),
+  ) as z.ZodType<number | undefined>;
 
 /**
  * Owners type "glowsalon.com", not "https://glowsalon.com". Accept what they
  * type and normalise it rather than rejecting it.
  */
 export const optionalUrl = (label = "Website") =>
-  z
-    .string()
-    .trim()
-    .transform((v) => {
-      if (v === "") return undefined;
-      return /^https?:\/\//i.test(v) ? v : `https://${v}`;
-    })
-    .refine(
-      (v) => v === undefined || z.string().url().safeParse(v).success,
-      `${label} doesn't look like a web address. Try something like glowsalon.com`,
-    )
-    .optional();
+  fromForm(
+    z
+      .string()
+      .trim()
+      .transform((v) => {
+        if (v === "") return undefined;
+        return /^https?:\/\//i.test(v) ? v : `https://${v}`;
+      })
+      .refine(
+        (v) => v === undefined || z.string().url().safeParse(v).success,
+        `${label} doesn't look like a web address. Try something like glowsalon.com`,
+      )
+      .optional(),
+  ) as z.ZodType<string | undefined>;
 
 export const optionalEmail = (label = "Email") =>
-  z
-    .string()
-    .trim()
-    .toLowerCase()
-    .transform((v) => (v === "" ? undefined : v))
-    .optional()
-    .refine(
-      (v) => v === undefined || z.string().email().safeParse(v).success,
-      `${label} doesn't look right. Check for a typo.`,
-    );
+  fromForm(
+    z
+      .string()
+      .trim()
+      .toLowerCase()
+      .transform((v) => (v === "" ? undefined : v))
+      .optional()
+      .refine(
+        (v) => v === undefined || z.string().email().safeParse(v).success,
+        `${label} doesn't look right. Check for a typo.`,
+      ),
+  ) as z.ZodType<string | undefined>;
 
 /** Phone numbers vary a lot — two lines, country codes, extensions. */
 export const optionalPhone = (label = "Phone number") =>
-  z
-    .string()
-    .trim()
-    .max(40, `${label} is too long.`)
-    .refine(
-      (v) => v === "" || /^[\d\s+()/,.-]{6,40}$/.test(v),
-      `${label} should only contain digits and + ( ) - / spaces.`,
-    )
-    .transform((v) => (v === "" ? undefined : v))
-    .optional();
+  fromForm(
+    z
+      .string()
+      .trim()
+      .max(40, `${label} is too long.`)
+      .refine(
+        (v) => v === "" || /^[\d\s+()/,.-]{6,40}$/.test(v),
+        `${label} should only contain digits and + ( ) - / spaces.`,
+      )
+      .transform((v) => (v === "" ? undefined : v))
+      .optional(),
+  ) as z.ZodType<string | undefined>;
 
 /** First error, phrased for a shop owner — never a raw zod string. */
 export function firstError(error: z.ZodError): string {
