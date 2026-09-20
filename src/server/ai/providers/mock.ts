@@ -69,7 +69,12 @@ function classifyIdea(text: string): string {
 
 function weekendWindow(text: string): { start: string | null; end: string | null; days: string | null } {
   const t = text.toLowerCase();
-  if (/weekend|saturday|sunday/.test(t)) return { start: null, end: null, days: "Saturday & Sunday" };
+  const sat = /saturday/.test(t);
+  const sun = /sunday/.test(t);
+  // Echo exactly the days the owner named — never widen "Sunday" to the weekend.
+  if (sat && !sun) return { start: null, end: null, days: "Saturday" };
+  if (sun && !sat) return { start: null, end: null, days: "Sunday" };
+  if (/weekend/.test(t) || (sat && sun)) return { start: null, end: null, days: "Saturday & Sunday" };
   if (/today/.test(t)) return { start: null, end: null, days: "Today" };
   if (/tomorrow/.test(t)) return { start: null, end: null, days: "Tomorrow" };
   return { start: null, end: null, days: null };

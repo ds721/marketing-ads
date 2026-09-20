@@ -107,8 +107,9 @@ class InstagramAdapter implements PlatformAdapter {
 
     const container = await graphPost(`/${input.accountId}/media`, {
       image_url: input.mediaUrl,
-      caption: input.text,
       access_token: input.accessToken,
+      // Stories take no caption; the flyer carries the message.
+      ...(input.kind === "STORY" ? { media_type: "STORIES" } : { caption: input.text }),
     });
     const creationId = String(container.id ?? "");
     if (!creationId) throw new Error("Instagram didn't accept the image. It has not been published.");

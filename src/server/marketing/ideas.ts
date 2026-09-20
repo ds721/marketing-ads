@@ -11,6 +11,7 @@ import {
 import { checkEntitlement, recordUsage } from "@/server/usage";
 import { audit } from "@/server/audit";
 import { log } from "@/server/logger";
+import { createCampaignFlyers } from "@/server/creative/campaign-flyer";
 import type { ContentType, Idea, IdeaCategory } from "@prisma/client";
 
 // ── Idea → campaign engine (§13–16) ───────────────────────────────────────
@@ -149,6 +150,19 @@ export async function generateCampaignForIdea(params: {
     proposal: proposal.data,
     generatedBy: `${proposal.provider}:${proposal.model}`,
   });
+
+  // Creatives come with the campaign, not as a separate chore. A flyer
+  // failure must not lose the campaign, so it's logged rather than thrown.
+  try {
+    await createCampaignFlyers({ tenantId, campaignId, userId });
+  } catch (err) {
+    log.error({
+      operation: "campaign.flyers",
+      tenantId,
+      status: "error",
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   await recordUsage(tenantId, "campaigns");
   await audit({

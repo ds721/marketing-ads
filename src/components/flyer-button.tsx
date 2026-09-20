@@ -11,9 +11,9 @@ export function FlyerButton({ slug, campaignId }: { slug: string; campaignId: st
       type="button"
       disabled={pending}
       onClick={() => start(() => generateFlyerAction(slug, campaignId))}
-      className={btnStyles.secondary}
+      className={btnStyles.ghost + " text-[13px]"}
     >
-      {pending ? "Making your flyer…" : "Make the flyer"}
+      {pending ? "Redrawing…" : "Redraw flyers"}
     </button>
   );
 }

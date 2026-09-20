@@ -76,6 +76,7 @@ async function publishContent(job: Job): Promise<void> {
 
     const result = await adapter.publish({
       contentItemId: item.id,
+      kind: item.contentType === "STORY" ? "STORY" : "POST",
       text: caption,
       mediaUrl,
       accessToken: decryptSecret(account.accessTokenEnc),

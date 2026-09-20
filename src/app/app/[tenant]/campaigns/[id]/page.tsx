@@ -1,12 +1,12 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireTenant, roleAtLeast } from "@/server/tenant";
 import { db } from "@/server/db";
 import { PageHeader } from "@/components/page-header";
-import { Card, Pill, StatusPill, PlatformBadge, SectionLabel } from "@/components/ui";
+import { Card, Pill, SectionLabel } from "@/components/ui";
 import { CampaignActions } from "@/components/campaign-actions";
 import { FlyerButton } from "@/components/flyer-button";
-import { formatDate, formatDateTime } from "@/lib/utils";
+import { PostCard } from "@/components/post-card";
+import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Campaign" };
 
@@ -37,10 +37,8 @@ export default async function CampaignPage({
   });
   if (!campaign) notFound();
 
-  const flyers = await db.asset.findMany({
-    where: { tenantId: ctx.tenant.id, kind: "FLYER", tags: { has: "campaign" } },
-    orderBy: { createdAt: "desc" },
-    take: 3,
+  const connected = await db.socialAccount.findFirst({
+    where: { tenantId: ctx.tenant.id, provider: "instagram", status: "CONNECTED" },
   });
 
   const facts = (campaign.facts as Record<string, string | null> | null) ?? {};
@@ -94,60 +92,34 @@ export default async function CampaignPage({
         </Card>
       )}
 
-      <Card className="mb-5">
-        <SectionLabel>Flyer</SectionLabel>
-        {flyers.length > 0 ? (
-          <div className="flex gap-3 items-start flex-wrap">
-            {flyers.map((f) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={f.id}
-                src={`/api/assets/${f.id}`}
-                alt={f.filename}
-                className="w-40 h-40 object-cover rounded-[12px] border border-line"
-              />
-            ))}
-            {canEdit && <FlyerButton slug={slug} campaignId={campaign.id} />}
-          </div>
-        ) : (
-          <div className="flex items-center gap-3 flex-wrap">
-            <p className="text-[14px] text-ink-soft flex-1 min-w-[240px]">
-              A print-and-post ready flyer using your brand colours, with the price and dates placed
-              by us — not by an image model.
-            </p>
-            {canEdit && <FlyerButton slug={slug} campaignId={campaign.id} />}
-          </div>
-        )}
-      </Card>
-
-      <SectionLabel>What we&apos;ll publish</SectionLabel>
-      <div className="flex flex-col gap-2.5 mb-6">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+        <SectionLabel>Ready to post</SectionLabel>
+        {canEdit && <FlyerButton slug={slug} campaignId={campaign.id} />}
+      </div>
+      <p className="text-[13px] text-ink-soft mb-4 max-w-[62ch]">
+        This is how each one will look. Tap a picture to swap in your own photo, or post as-is.
+      </p>
+      <div className="flex flex-col gap-3 mb-6">
         {campaign.contentItems.map((item) => (
-          <Card key={item.id}>
-            <div className="flex items-start gap-3">
-              <PlatformBadge platform={item.platform} size={28} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <Link href={`/app/${slug}/content/${item.id}`} className="font-bold text-sm hover:text-beet">
-                    {item.title}
-                  </Link>
-                  <Pill>{item.contentType.toLowerCase()}</Pill>
-                </div>
-                {item.hook && (
-                  <p className="text-[14px] font-semibold text-beet-deep mb-1">{item.hook}</p>
-                )}
-                <p className="text-[14.5px] whitespace-pre-wrap">{item.body}</p>
-                {item.hashtags.length > 0 && (
-                  <p className="text-[13px] text-peacock-deep mt-1.5">{item.hashtags.join(" ")}</p>
-                )}
-                <div className="text-xs text-ink-faint mt-2">
-                  {item.cta ? `${item.cta} · ` : ""}
-                  {formatDateTime(item.scheduledAt)}
-                </div>
-              </div>
-              <StatusPill status={item.status} />
-            </div>
-          </Card>
+          <PostCard
+            key={item.id}
+            slug={slug}
+            canPublish={canEdit}
+            connected={Boolean(connected)}
+            item={{
+              id: item.id,
+              platform: item.platform,
+              contentType: item.contentType,
+              title: item.title,
+              hook: item.hook,
+              body: item.body,
+              cta: item.cta,
+              hashtags: item.hashtags,
+              assetId: item.assetId,
+              status: item.status,
+              scheduledAt: item.scheduledAt?.toISOString() ?? null,
+            }}
+          />
         ))}
       </div>
 

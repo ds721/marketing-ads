@@ -5,6 +5,8 @@
 
 export interface PublishInput {
   contentItemId: string;
+  /** Feed post or 24-hour story. */
+  kind: "POST" | "STORY";
   text: string;
   /** Publicly reachable media URL, when the platform requires one. */
   mediaUrl?: string | null;

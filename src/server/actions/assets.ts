@@ -13,7 +13,6 @@ import {
 import { checkEntitlement, recordUsage } from "@/server/usage";
 import { UsageLimitError } from "@/server/usage";
 import { audit } from "@/server/audit";
-import { renderFlyerSvg, flyerSpecFromCampaign } from "@/server/creative/flyer";
 import {
   probeVideo,
   extractPoster,
@@ -148,79 +147,19 @@ export async function renameAssetAction(
   return { ok: true };
 }
 
-/**
- * Generate the campaign flyer. Text is drawn deterministically by our renderer
- * from the campaign's locked facts — the image model never touches it (§19).
- */
+/** Regenerates the campaign's flyers (e.g. after changing brand colours). */
 export async function generateFlyerAction(slug: string, campaignId: string): Promise<void> {
   const ctx = await requireTenant(slug, "EDITOR");
-  const [campaign, profile, brand] = await Promise.all([
-    db.campaign.findUnique({ where: { id: campaignId } }),
-    db.businessProfile.findUnique({ where: { tenantId: ctx.tenant.id } }),
-    db.brandSettings.findUnique({ where: { tenantId: ctx.tenant.id } }),
-  ]);
+  const campaign = await db.campaign.findUnique({ where: { id: campaignId } });
   assertTenantOwns(ctx, campaign);
 
-  const watermark =
-    brand?.watermarkEnabled && (brand.watermarkText || ctx.tenant.name)
-      ? {
-          position: brand.watermarkPosition,
-          opacity: brand.watermarkOpacity,
-          // A logo asset would be embedded here as a data: URI; until one is
-          // uploaded we fall back to the tenant's own name as a text mark.
-          logoDataUri: null,
-          text: brand.watermarkText ?? ctx.tenant.name,
-        }
-      : null;
-
-  const svg = renderFlyerSvg(
-    flyerSpecFromCampaign({
-      campaignName: campaign.name,
-      facts: (campaign.facts as Record<string, string | null>) ?? {},
-      business: {
-        name: ctx.tenant.name,
-        phone: profile?.phone ?? null,
-        address: profile?.address ?? null,
-        city: profile?.city ?? null,
-      },
-      brand: {
-        primary: brand?.primaryColor ?? "#D6367B",
-        secondary: brand?.secondaryColor ?? "#2E2447",
-        accent: brand?.accentColor ?? "#F5A31C",
-      },
-      cta: brand?.ctaPreference ?? null,
-    }),
-    "square",
-    watermark,
-  );
-
-  const buf = Buffer.from(svg, "utf8");
-  const key = storageKey(ctx.tenant.id, `${campaign.name.slice(0, 40)}-flyer.svg`);
-  await getStorageProvider().put(key, buf, "image/svg+xml");
-
-  const asset = await db.asset.create({
-    data: {
-      tenantId: ctx.tenant.id,
-      kind: "FLYER",
-      filename: `${campaign.name.slice(0, 60)} — flyer.svg`,
-      mimeType: "image/svg+xml",
-      sizeBytes: buf.length,
-      storageKey: key,
-      width: 1080,
-      height: 1080,
-      tags: ["flyer", "campaign"],
-      createdById: ctx.userId,
-    },
+  // Detach the old flyers so fresh ones are rendered and attached.
+  await db.contentItem.updateMany({
+    where: { tenantId: ctx.tenant.id, campaignId: campaign.id, platform: "instagram" },
+    data: { assetId: null },
   });
-
-  await audit({
-    tenantId: ctx.tenant.id,
-    userId: ctx.userId,
-    action: "asset.flyer_generate",
-    targetType: "asset",
-    targetId: asset.id,
-    meta: { campaignId },
-  });
+  const { createCampaignFlyers } = await import("@/server/creative/campaign-flyer");
+  await createCampaignFlyers({ tenantId: ctx.tenant.id, campaignId: campaign.id, userId: ctx.userId });
 
   revalidatePath(`/app/${slug}/campaigns/${campaignId}`);
   revalidatePath(`/app/${slug}/assets`);
