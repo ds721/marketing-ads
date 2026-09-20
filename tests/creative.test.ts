@@ -72,3 +72,59 @@ describe("flyer rendering", () => {
     }
   });
 });
+
+// ── Templates ─────────────────────────────────────────────────────────────
+
+import { TEMPLATES, renderTemplate, getTemplate } from "@/server/creative/templates";
+import { cleanText } from "@/server/creative/svg";
+
+describe("flyer templates", () => {
+  const input = {
+    headline: "Biryani + Coke combo",
+    price: "₹199",
+    when: "Saturday & Sunday",
+    businessName: "Spice House",
+    cta: "Order now",
+    phone: "+91 98410 55555",
+    address: "45 T Nagar",
+    brand: { primary: "#E8492E", secondary: "#2E2447", accent: "#F5A31C" },
+  };
+
+  it("offers six distinct looks", () => {
+    expect(TEMPLATES).toHaveLength(6);
+    expect(new Set(TEMPLATES.map((t) => t.id)).size).toBe(6);
+  });
+
+  it("every look, every shape, with and without a photo, carries the locked facts", () => {
+    const photo = "data:image/jpeg;base64,/9j/4AAQ";
+    for (const t of TEMPLATES) {
+      for (const format of ["square", "portrait", "story"] as const) {
+        for (const p of [null, photo]) {
+          const svg = t.render({ ...input, format, photo: p });
+          expect(svg.startsWith("<svg"), `${t.id}/${format}`).toBe(true);
+          expect(svg, `${t.id}/${format} price`).toContain("₹199");
+          expect(svg, `${t.id}/${format} phone`).toContain("+91 98410 55555");
+          expect(svg, `${t.id}/${format} cta`).toContain("Order now");
+          expect(svg, `${t.id}/${format} when`).toMatch(/Saturday &amp; Sunday|SATURDAY &amp; SUNDAY/);
+          expect(svg).not.toContain("₹1990");
+        }
+      }
+    }
+  });
+
+  it("falls back to the default look for an unknown id", () => {
+    expect(getTemplate("nonsense").id).toBe("bold");
+    expect(renderTemplate(undefined, { ...input, format: "square" })).toContain("<svg");
+  });
+
+  it("strips the quote marks owners type around an offer", () => {
+    expect(cleanText('"We have 50 extra cakes today"')).toBe("We have 50 extra cakes today");
+    expect(cleanText("“Weekend special”")).toBe("Weekend special");
+    expect(cleanText("  plain   text  ")).toBe("plain text");
+  });
+
+  it("escapes markup inside a photo data URI so it can't break the SVG", () => {
+    const svg = TEMPLATES[0]!.render({ ...input, format: "square", photo: 'data:x"><script>' });
+    expect(svg).not.toContain("<script>");
+  });
+});

@@ -4,6 +4,8 @@ import { useActionState } from "react";
 import { submitIdeaAction } from "@/server/actions/marketing";
 import type { FormState } from "@/server/actions/auth";
 import { FormError, btnStyles } from "@/components/ui";
+import { LookPicker } from "@/components/look-picker";
+import type { LookPreview, PhotoChoice } from "@/server/creative/looks";
 
 const initial: FormState = {};
 
@@ -15,7 +17,19 @@ const EXAMPLES = [
   "We're closed tomorrow",
 ];
 
-export function IdeaComposer({ slug, autoFocus = false }: { slug: string; autoFocus?: boolean }) {
+export function IdeaComposer({
+  slug,
+  autoFocus = false,
+  looks,
+  photos,
+  defaultLook,
+}: {
+  slug: string;
+  autoFocus?: boolean;
+  looks: LookPreview[];
+  photos: PhotoChoice[];
+  defaultLook: string;
+}) {
   const [state, action, pending] = useActionState(submitIdeaAction.bind(null, slug), initial);
 
   return (
@@ -31,6 +45,9 @@ export function IdeaComposer({ slug, autoFocus = false }: { slug: string; autoFo
           placeholder="What's happening in your business?"
           className="w-full bg-surface border-[1.5px] border-line-strong rounded-[16px] px-5 py-4 text-[15px] text-ink placeholder:text-ink-faint focus:border-beet focus:outline-none shadow-soft resize-none"
         />
+        <div className="bg-surface border border-line rounded-[16px] p-4">
+          <LookPicker looks={looks} photos={photos} defaultLook={defaultLook} />
+        </div>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <span className="text-xs text-ink-faint">
             Plain words are enough — the AI works out what kind of marketing this needs.

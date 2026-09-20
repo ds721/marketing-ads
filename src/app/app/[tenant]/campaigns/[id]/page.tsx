@@ -4,7 +4,8 @@ import { db } from "@/server/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, Pill, SectionLabel } from "@/components/ui";
 import { CampaignActions } from "@/components/campaign-actions";
-import { FlyerButton } from "@/components/flyer-button";
+import { ChangeLook } from "@/components/change-look";
+import { lookPreviews } from "@/server/creative/looks";
 import { PostCard } from "@/components/post-card";
 import { formatDate } from "@/lib/utils";
 
@@ -37,9 +38,12 @@ export default async function CampaignPage({
   });
   if (!campaign) notFound();
 
-  const connected = await db.socialAccount.findFirst({
-    where: { tenantId: ctx.tenant.id, provider: "instagram", status: "CONNECTED" },
-  });
+  const [connected, picker] = await Promise.all([
+    db.socialAccount.findFirst({
+      where: { tenantId: ctx.tenant.id, provider: "instagram", status: "CONNECTED" },
+    }),
+    lookPreviews(ctx.tenant.id, campaign.heroAssetId),
+  ]);
 
   const facts = (campaign.facts as Record<string, string | null> | null) ?? {};
   const statedFacts = Object.entries(facts).filter(([, v]) => v);
@@ -92,9 +96,18 @@ export default async function CampaignPage({
         </Card>
       )}
 
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
         <SectionLabel>Ready to post</SectionLabel>
-        {canEdit && <FlyerButton slug={slug} campaignId={campaign.id} />}
+        {canEdit && (
+          <ChangeLook
+            slug={slug}
+            campaignId={campaign.id}
+            looks={picker.looks}
+            photos={picker.photos}
+            currentLook={campaign.templateId ?? picker.defaultLook}
+            currentPhotoId={campaign.heroAssetId}
+          />
+        )}
       </div>
       <p className="text-[13px] text-ink-soft mb-4 max-w-[62ch]">
         This is how each one will look. Tap a picture to swap in your own photo, or post as-is.

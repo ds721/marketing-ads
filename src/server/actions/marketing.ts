@@ -51,12 +51,22 @@ export async function submitIdeaAction(
   const parsed = ideaSchema.safeParse({ text: formData.get("text") });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
 
+  // Creative choices from the picker. A photo id is only honoured if it's ours.
+  const templateId = String(formData.get("template") ?? "") || null;
+  let heroAssetId = String(formData.get("heroAssetId") ?? "") || null;
+  if (heroAssetId) {
+    const asset = await db.asset.findFirst({ where: { id: heroAssetId, tenantId: ctx.tenant.id }, select: { id: true } });
+    if (!asset) heroAssetId = null;
+  }
+
   let result;
   try {
     result = await submitIdea({
       tenantId: ctx.tenant.id,
       userId: ctx.userId,
       text: parsed.data.text,
+      templateId,
+      heroAssetId,
     });
   } catch (err) {
     return { error: friendly(err, "idea.submit", ctx.tenant.id) };
@@ -358,4 +368,38 @@ export async function publishNowAction(slug: string, contentId: string): Promise
   if (after.status === "PUBLISHED") return { ok: true, message: "It's live on Instagram." };
   if (after.status === "FAILED") return { error: after.failureReason ?? "Instagram didn't accept the post." };
   return { ok: true, message: "Publishing — refresh in a moment." };
+}
+
+
+// ── Change the look of an existing campaign ───────────────────────────────
+
+export async function changeLookAction(
+  slug: string,
+  campaignId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const ctx = await requireTenant(slug, "EDITOR");
+  const campaign = await db.campaign.findUnique({ where: { id: campaignId } });
+  assertTenantOwns(ctx, campaign);
+
+  const templateId = String(formData.get("template") ?? "") || null;
+  let heroAssetId = String(formData.get("heroAssetId") ?? "") || null;
+  if (heroAssetId) {
+    const asset = await db.asset.findFirst({ where: { id: heroAssetId, tenantId: ctx.tenant.id }, select: { id: true } });
+    if (!asset) heroAssetId = null;
+  }
+
+  await db.campaign.update({ where: { id: campaign.id }, data: { templateId, heroAssetId } });
+  // Detach the old flyers (published posts keep theirs) and redraw.
+  await db.contentItem.updateMany({
+    where: { tenantId: ctx.tenant.id, campaignId: campaign.id, platform: "instagram", status: { not: "PUBLISHED" } },
+    data: { assetId: null },
+  });
+  const { createCampaignFlyers } = await import("@/server/creative/campaign-flyer");
+  await createCampaignFlyers({ tenantId: ctx.tenant.id, campaignId: campaign.id, userId: ctx.userId });
+
+  await audit({ tenantId: ctx.tenant.id, userId: ctx.userId, action: "campaign.change_look", targetType: "campaign", targetId: campaign.id, meta: { templateId, heroAssetId } });
+  revalidatePath(`/app/${slug}/campaigns/${campaign.id}`);
+  return { ok: true, message: "Redrawn." };
 }

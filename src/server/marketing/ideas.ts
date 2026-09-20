@@ -32,6 +32,9 @@ export async function submitIdea(params: {
   mediaAssetId?: string | null;
   /** Answers to a previous round of missingInfo, appended to the idea text. */
   extraDetail?: string | null;
+  /** Creative choices made up front: which look, which photo. */
+  templateId?: string | null;
+  heroAssetId?: string | null;
 }): Promise<IdeaResult> {
   const { tenantId, userId } = params;
   const text = params.extraDetail
@@ -100,6 +103,8 @@ export async function submitIdea(params: {
     idea,
     ideaText: text,
     facts: classified.data.facts,
+    templateId: params.templateId ?? null,
+    heroAssetId: params.heroAssetId ?? null,
   });
 
   return { idea, missingInfo: [], campaignId };
@@ -120,6 +125,8 @@ export async function generateCampaignForIdea(params: {
   idea: Idea;
   ideaText: string;
   facts: Record<string, string | null>;
+  templateId?: string | null;
+  heroAssetId?: string | null;
 }): Promise<string> {
   const { tenantId, userId, idea, ideaText, facts } = params;
 
@@ -149,6 +156,8 @@ export async function generateCampaignForIdea(params: {
     facts,
     proposal: proposal.data,
     generatedBy: `${proposal.provider}:${proposal.model}`,
+    templateId: params.templateId ?? null,
+    heroAssetId: params.heroAssetId ?? null,
   });
 
   // Creatives come with the campaign, not as a separate chore. A flyer
@@ -185,6 +194,8 @@ async function persistProposal(params: {
   facts: Record<string, string | null>;
   proposal: CampaignProposal;
   generatedBy: string;
+  templateId?: string | null;
+  heroAssetId?: string | null;
 }): Promise<string> {
   const { tenantId, userId, proposal, facts } = params;
   const startsAt = new Date();
@@ -209,6 +220,8 @@ async function persistProposal(params: {
         generatedBy: params.generatedBy,
         promptVersion: PROMPT_VERSIONS.campaignProposal,
         createdById: userId,
+        templateId: params.templateId ?? null,
+        heroAssetId: params.heroAssetId ?? null,
       },
     });
 

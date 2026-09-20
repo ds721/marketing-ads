@@ -4,6 +4,7 @@ import { db } from "@/server/db";
 import { isMockAi } from "@/server/ai";
 import { Card, StatusPill, PlatformBadge, btnStyles, SectionLabel, Pill } from "@/components/ui";
 import { IdeaComposer } from "@/components/idea-composer";
+import { lookPreviews } from "@/server/creative/looks";
 import { GenerateStrategyButton } from "@/components/strategy-button";
 import { formatDateTime, monthKey } from "@/lib/utils";
 
@@ -54,6 +55,8 @@ export default async function DashboardPage({
     }),
     db.socialAccount.count({ where: { tenantId, status: "CONNECTED" } }),
   ]);
+
+  const picker = await lookPreviews(tenantId);
 
   const progress = goal?.targetNumber
     ? Math.min(100, Math.round((goal.currentNumber / goal.targetNumber) * 100))
@@ -174,7 +177,7 @@ export default async function DashboardPage({
 
       <section className="mt-8">
         <SectionLabel>Tell the AI what&apos;s happening</SectionLabel>
-        <IdeaComposer slug={slug} />
+        <IdeaComposer slug={slug} {...picker} />
       </section>
 
       <section className="mt-8">

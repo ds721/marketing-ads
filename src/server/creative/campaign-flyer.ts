@@ -2,6 +2,7 @@ import { db } from "@/server/db";
 import { getStorageProvider, storageKey } from "@/server/storage";
 import { renderFlyerSvg, flyerSpecFromCampaign, type FlyerFormat } from "@/server/creative/flyer";
 import { audit } from "@/server/audit";
+import { photoDataUri } from "@/server/creative/photo";
 
 // ── Automatic campaign creatives ──────────────────────────────────────────
 // A campaign isn't done until it has something to post. The moment a
@@ -60,6 +61,13 @@ export async function createCampaignFlyers(params: {
         }
       : null;
 
+  const templateId = campaign.templateId ?? brand?.flyerTemplate ?? null;
+  const heroPhoto =
+    campaign.heroAssetId &&
+    (await db.asset.findFirst({ where: { id: campaign.heroAssetId, tenantId }, select: { id: true } }))
+      ? await photoDataUri(campaign.heroAssetId)
+      : null;
+
   const storage = getStorageProvider();
   const byFormat = new Map<FlyerFormat, string>();
   let attached = 0;
@@ -69,7 +77,7 @@ export async function createCampaignFlyers(params: {
 
     let assetId = byFormat.get(format);
     if (!assetId) {
-      const svg = renderFlyerSvg(spec, format, watermark);
+      const svg = renderFlyerSvg(spec, format, watermark, templateId, heroPhoto);
       const buf = Buffer.from(svg, "utf8");
       const key = storageKey(tenantId, `${campaign.name.slice(0, 40)}-${format}.svg`);
       await storage.put(key, buf, "image/svg+xml");
@@ -83,7 +91,7 @@ export async function createCampaignFlyers(params: {
           storageKey: key,
           width: 1080,
           height: format === "square" ? 1080 : format === "portrait" ? 1350 : 1920,
-          tags: ["flyer", "campaign", format],
+          tags: ["flyer", "campaign", format, templateId ?? "bold"],
           watermarked: Boolean(watermark),
           createdById: userId ?? null,
         },

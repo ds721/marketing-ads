@@ -147,24 +147,6 @@ export async function renameAssetAction(
   return { ok: true };
 }
 
-/** Regenerates the campaign's flyers (e.g. after changing brand colours). */
-export async function generateFlyerAction(slug: string, campaignId: string): Promise<void> {
-  const ctx = await requireTenant(slug, "EDITOR");
-  const campaign = await db.campaign.findUnique({ where: { id: campaignId } });
-  assertTenantOwns(ctx, campaign);
-
-  // Detach the old flyers so fresh ones are rendered and attached.
-  await db.contentItem.updateMany({
-    where: { tenantId: ctx.tenant.id, campaignId: campaign.id, platform: "instagram" },
-    data: { assetId: null },
-  });
-  const { createCampaignFlyers } = await import("@/server/creative/campaign-flyer");
-  await createCampaignFlyers({ tenantId: ctx.tenant.id, campaignId: campaign.id, userId: ctx.userId });
-
-  revalidatePath(`/app/${slug}/campaigns/${campaignId}`);
-  revalidatePath(`/app/${slug}/assets`);
-}
-
 /**
  * Burns the tenant's brand mark into a video and stores it as a new asset —
  * the original is never overwritten, so the owner can re-run it after

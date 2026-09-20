@@ -188,6 +188,8 @@ model BrandSettings {
   watermarkText     String?
   watermarkPosition WatermarkPosition @default(BOTTOM_RIGHT)
   watermarkOpacity  Int               @default(75) // percent
+  // Default flyer look for this brand; a campaign can override it.
+  flyerTemplate     String            @default("bold")
   socialLinks      Json?
   publicSiteEnabled Boolean @default(true)
   seoTitle         String?
@@ -399,6 +401,9 @@ model Campaign {
   // Locked commercial facts (price, dates, phone) — rendered deterministically,
   // never left to an AI model to (re)generate. See §19 of the product spec.
   facts         Json?
+  // Creative choices the owner made before generating: which look, which photo.
+  templateId    String?
+  heroAssetId   String?
   proposal      Json? // full AI proposal for review UI
   generatedBy   String?
   promptVersion String?
