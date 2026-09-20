@@ -302,3 +302,60 @@ export async function generateVideoForContentAction(slug: string, contentId: str
   });
   revalidatePath(`/app/${slug}/calendar`);
 }
+
+// ── Post page: image + publish (§22) ──────────────────────────────────────
+
+export async function attachAssetAction(slug: string, contentId: string, assetId: string | null): Promise<FormState> {
+  const ctx = await requireTenant(slug, "EDITOR");
+  const item = await db.contentItem.findUnique({ where: { id: contentId } });
+  assertTenantOwns(ctx, item);
+
+  if (assetId) {
+    const asset = await db.asset.findUnique({ where: { id: assetId } });
+    assertTenantOwns(ctx, asset);
+    if (asset.kind === "VIDEO") return { error: "Video posts aren't supported yet — pick a photo or flyer." };
+  }
+
+  await db.contentItem.update({ where: { id: item.id }, data: { assetId } });
+  revalidatePath(`/app/${slug}/content/${item.id}`);
+  return { ok: true };
+}
+
+/**
+ * Publishes one post right now, in the request, and reports what happened.
+ * The owner sees the result — not a promise that a background job will get
+ * to it eventually.
+ */
+export async function publishNowAction(slug: string, contentId: string): Promise<FormState> {
+  const ctx = await requireTenant(slug, "EDITOR");
+  const item = await db.contentItem.findUnique({ where: { id: contentId } });
+  assertTenantOwns(ctx, item);
+
+  if (item.status === "PUBLISHED") return { error: "This post is already live." };
+  if (item.platform === "instagram" && !item.assetId) {
+    return { error: "Instagram needs a photo. Pick one below first." };
+  }
+  const connected = await db.socialAccount.findFirst({
+    where: { tenantId: ctx.tenant.id, provider: item.platform, status: "CONNECTED" },
+  });
+  if (!connected) {
+    return { error: `${item.platform.replace("_", " ")} isn't connected yet. Connect it on the Instagram page.` };
+  }
+
+  await db.contentItem.update({ where: { id: item.id }, data: { status: "SCHEDULED" } });
+  await audit({ tenantId: ctx.tenant.id, userId: ctx.userId, action: "content.publish_now", targetType: "content", targetId: item.id });
+
+  const { enqueue } = await import("@/server/jobs/queue");
+  const { tick } = await import("@/server/jobs/worker");
+  await enqueue({ type: "publish_content", tenantId: ctx.tenant.id, payload: { contentItemId: item.id }, maxAttempts: 1 });
+  await tick(5);
+
+  const after = await db.contentItem.findUniqueOrThrow({ where: { id: item.id } });
+  revalidatePath(`/app/${slug}/content/${item.id}`);
+  revalidatePath(`/app/${slug}/calendar`);
+  revalidatePath(`/app/${slug}/dashboard`);
+
+  if (after.status === "PUBLISHED") return { ok: true, message: "It's live on Instagram." };
+  if (after.status === "FAILED") return { error: after.failureReason ?? "Instagram didn't accept the post." };
+  return { ok: true, message: "Publishing — refresh in a moment." };
+}

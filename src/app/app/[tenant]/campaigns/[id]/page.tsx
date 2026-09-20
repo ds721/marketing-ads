@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireTenant, roleAtLeast } from "@/server/tenant";
 import { db } from "@/server/db";
@@ -127,7 +128,9 @@ export default async function CampaignPage({
               <PlatformBadge platform={item.platform} size={28} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className="font-bold text-sm">{item.title}</span>
+                  <Link href={`/app/${slug}/content/${item.id}`} className="font-bold text-sm hover:text-beet">
+                    {item.title}
+                  </Link>
                   <Pill>{item.contentType.toLowerCase()}</Pill>
                 </div>
                 {item.hook && (

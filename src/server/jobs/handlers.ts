@@ -1,6 +1,7 @@
 import { db } from "@/server/db";
 import { decryptSecret, encryptSecret } from "@/server/crypto";
 import { publicAssetUrl } from "@/server/public-assets";
+import { ensureJpegAsset } from "@/server/creative/raster";
 import { refreshLongLivedToken, isInstagramConfigured } from "@/server/social/instagram-oauth";
 import { getAdapter } from "@/server/social";
 import { PlatformAuthError, PlatformNotConfiguredError } from "@/server/social/types";
@@ -68,9 +69,10 @@ async function publishContent(job: Job): Promise<void> {
       .filter(Boolean)
       .join("\n\n");
 
-    // Instagram fetches the image itself, so it needs a link it can reach.
-    // The link is signed and expires — the asset isn't made public for good.
-    const mediaUrl = item.assetId ? publicAssetUrl(item.assetId) : null;
+    // Instagram fetches the image itself, so it needs a link it can reach —
+    // signed and expiring, so the asset isn't made public for good — and it
+    // only accepts JPEG, so SVG flyers and PNG uploads are converted first.
+    const mediaUrl = item.assetId ? publicAssetUrl(await ensureJpegAsset(item.assetId)) : null;
 
     const result = await adapter.publish({
       contentItemId: item.id,

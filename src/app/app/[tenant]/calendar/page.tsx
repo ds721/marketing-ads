@@ -122,7 +122,9 @@ export default async function CalendarPage({
             <Card key={item.id} className="flex items-start gap-3">
               <PlatformBadge platform={item.platform} size={28} />
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm">{item.title}</div>
+                <Link href={`/app/${slug}/content/${item.id}`} className="font-semibold text-sm hover:text-beet">
+                  {item.title}
+                </Link>
                 <p className="text-[13.5px] text-ink-soft line-clamp-2 whitespace-pre-wrap">
                   {item.body || "No copy written yet."}
                 </p>
@@ -168,10 +170,11 @@ export default async function CalendarPage({
                   {day.toLocaleDateString("en-IN", { weekday: "short", day: "numeric" })}
                 </div>
                 {dayItems.map((item) => (
-                  <div
+                  <Link
                     key={item.id}
+                    href={`/app/${slug}/content/${item.id}`}
                     className={cn(
-                      "rounded-[9px] px-2 py-1.5 text-[11.5px] font-semibold leading-snug mb-1.5 border-l-[3px]",
+                      "block rounded-[9px] px-2 py-1.5 text-[11.5px] font-semibold leading-snug mb-1.5 border-l-[3px] hover:brightness-95",
                       slotTone(item),
                     )}
                   >
@@ -183,7 +186,7 @@ export default async function CalendarPage({
                         minute: "2-digit",
                       })}
                     </span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             );
