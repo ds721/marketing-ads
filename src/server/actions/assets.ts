@@ -28,7 +28,7 @@ export async function uploadAssetAction(
   slug: string,
   _prev: FormState,
   formData: FormData,
-): Promise<FormState> {
+): Promise<FormState & { assetId?: string; kind?: "IMAGE" | "VIDEO" }> {
   const ctx = await requireTenant(slug, "EDITOR");
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Choose a file to upload." };
@@ -111,7 +111,8 @@ export async function uploadAssetAction(
   });
 
   revalidatePath(`/app/${slug}/assets`);
-  return { ok: true, message: "Uploaded." };
+  revalidatePath(`/app/${slug}/ideas/new`);
+  return { ok: true, message: "Uploaded.", assetId: asset.id, kind: isVideo ? "VIDEO" : "IMAGE" };
 }
 
 export async function deleteAssetAction(slug: string, assetId: string): Promise<void> {

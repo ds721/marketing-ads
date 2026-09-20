@@ -46,6 +46,7 @@ export function ChangeLook({
       <FormError error={state.error} />
       <FormSuccess message={state.message} />
       <LookPicker
+        slug={slug}
         looks={looks}
         photos={photos}
         defaultLook={currentLook}

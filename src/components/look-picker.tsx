@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { LookPreview, PhotoChoice } from "@/server/creative/looks";
+import { InlineUpload } from "@/components/inline-upload";
 
 /**
  * The owner picks how the flyer should look — and which photo to use —
@@ -17,6 +18,7 @@ export function LookPicker({
   compact = false,
   onChange,
   generator,
+  slug,
 }: {
   looks: LookPreview[];
   photos: PhotoChoice[];
@@ -26,11 +28,15 @@ export function LookPicker({
   onChange?: (look: string, photoId: string | null) => void;
   /** Optional "make a photo" control, rendered inside the photo row. */
   generator?: (onGenerated: (assetId: string) => void) => React.ReactNode;
+  /** Tenant slug — enables the inline upload tile. */
+  slug?: string;
 }) {
   const [look, setLookState] = useState(defaultLook);
   const [photoId, setPhotoIdState] = useState<string | null>(defaultPhotoId);
   const [extra, setExtra] = useState<PhotoChoice[]>([]);
-  const allPhotos = [...extra, ...photos];
+  // A just-added photo appears locally at once, and again from the server
+  // after revalidation — keep one copy.
+  const allPhotos = [...extra, ...photos].filter((p, i, arr) => arr.findIndex((q) => q.id === p.id) === i);
   const setLook = (l: string) => { setLookState(l); onChange?.(l, photoId); };
   const setPhotoId = (p: string | null) => { setPhotoIdState(p); onChange?.(look, p); };
   const chosen = looks.find((l) => l.id === look);
@@ -71,13 +77,17 @@ export function LookPicker({
             {chosen?.wantsPhoto ? "— this look works best with one" : "— optional"}
           </span>
         </div>
-        {allPhotos.length === 0 && !generator ? (
-          <p className="text-[12.5px] text-ink-soft">
-            No photos in your library yet. Upload one under Assets — a shot of the dish, the
-            product, your shopfront — and it&apos;ll appear here.
-          </p>
-        ) : (
-          <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
+            {slug && (
+              <InlineUpload
+                slug={slug}
+                accept="image"
+                onUploaded={(assetId) => {
+                  setExtra((e) => [{ id: assetId, filename: "Uploaded photo" }, ...e]);
+                  setPhotoId(assetId);
+                }}
+              />
+            )}
             {generator?.((assetId) => {
               setExtra((e) => [{ id: assetId, filename: "AI photo" }, ...e]);
               setPhotoId(assetId);
@@ -109,7 +119,11 @@ export function LookPicker({
                 <img src={`/api/assets/${p.id}`} alt={p.filename} className="w-full h-full object-cover" />
               </button>
             ))}
-          </div>
+        </div>
+        {allPhotos.length === 0 && (
+          <p className="text-[12px] text-ink-faint mt-2">
+            A photo of the dish, the product or your shopfront makes every look better.
+          </p>
         )}
       </div>
     </div>

@@ -105,6 +105,7 @@ export function IdeaStudio({
 
         <div className="bg-surface border border-line rounded-[16px] p-4">
           <LookPicker
+            slug={slug}
             looks={looks}
             photos={photos}
             defaultLook={defaultLook}
