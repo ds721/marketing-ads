@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { submitIdeaAction } from "@/server/actions/marketing";
 import type { FormState } from "@/server/actions/auth";
 import { FormError, btnStyles } from "@/components/ui";
 import { LookPicker } from "@/components/look-picker";
 import { renderTemplate } from "@/server/creative/templates";
 import { cleanText } from "@/server/creative/svg";
+import { ensureFonts, fontsReady } from "@/server/creative/fonts";
 import type { LookPreview, PhotoChoice, PreviewContext } from "@/server/creative/looks";
 import { cn } from "@/lib/utils";
 
@@ -57,8 +58,14 @@ export function IdeaStudio({
   const [look, setLook] = useState(defaultLook);
   const [photoId, setPhotoId] = useState<string | null>(photos[0]?.id ?? null);
   const [shape, setShape] = useState<"square" | "story">("square");
+  const [fonts, setFonts] = useState(fontsReady());
+  useEffect(() => {
+    ensureFonts().then(() => setFonts(true));
+  }, []);
 
   const svg = useMemo(() => {
+    // `fonts` flips once the outlines are available; re-render then.
+    void fonts;
     const s = sketch(text);
     return renderTemplate(look, {
       format: shape,
@@ -66,6 +73,7 @@ export function IdeaStudio({
       price: s.price,
       when: s.when,
       businessName: context.businessName,
+      category: context.category,
       cta: context.cta ?? "Order now",
       phone: context.phone,
       address: context.address,
@@ -74,7 +82,7 @@ export function IdeaStudio({
       photo: photoId ? `/api/assets/${photoId}` : null,
       watermark: context.watermark ? { ...context.watermark, logoDataUri: null } : null,
     });
-  }, [text, look, photoId, shape, context]);
+  }, [text, look, photoId, shape, context, fonts]);
 
   return (
     <div className="grid lg:grid-cols-[1fr_400px] gap-8 items-start">

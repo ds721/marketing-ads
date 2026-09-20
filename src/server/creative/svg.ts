@@ -1,4 +1,10 @@
+import { textPath, measure, wrapWidth, type FontId } from "@/server/creative/fonts";
+
 // ── SVG building blocks shared by every flyer template ────────────────────
+// All text goes through textPath → vector outlines from bundled fonts, so a
+// flyer looks the same on every machine and every width is measured.
+
+export type { FontId };
 
 export function esc(s: string): string {
   return s
@@ -18,54 +24,80 @@ export function cleanText(s: string): string {
     .trim();
 }
 
-/** Greedy word wrap into at most maxLines lines of ~maxChars. */
-export function wrap(text: string, maxChars: number, maxLines: number): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let line = "";
-  for (const word of words) {
-    if (!line) line = word;
-    else if ((line + " " + word).length <= maxChars) line += " " + word;
-    else {
-      lines.push(line);
-      line = word;
-      if (lines.length === maxLines) break;
-    }
-  }
-  if (line && lines.length < maxLines) lines.push(line);
-  if (lines.length === maxLines && words.join(" ").length > lines.join(" ").length) {
-    lines[maxLines - 1] = lines[maxLines - 1]!.slice(0, Math.max(0, maxChars - 1)) + "…";
-  }
-  return lines;
+/** Word-wrap to a pixel width using the real font metrics. */
+export function wrap(text: string, font: FontId, size: number, maxWidth: number, maxLines: number): string[] {
+  return wrapWidth(font, text, size, maxWidth, maxLines);
 }
 
-/** Multi-line <text> block. Returns the markup and the y where the block ends. */
+/**
+ * Fit a headline: shrink the size until it wraps into `maxLines` at `maxWidth`.
+ * Returns the lines and the size that made them fit.
+ */
+export function fitHeadline(
+  text: string,
+  font: FontId,
+  maxWidth: number,
+  maxLines: number,
+  startSize: number,
+  minSize: number,
+): { lines: string[]; size: number } {
+  let size = startSize;
+  while (size > minSize) {
+    const lines = wrapWidth(font, text, size, maxWidth, maxLines + 1);
+    if (lines.length <= maxLines && !lines[lines.length - 1]?.endsWith("…")) return { lines, size };
+    size = Math.round(size * 0.92);
+  }
+  return { lines: wrapWidth(font, text, minSize, maxWidth, maxLines), size: minSize };
+}
+
+/** Multi-line block. `y` is the first baseline. Returns markup and the last baseline. */
 export function textBlock(opts: {
   lines: string[];
   x: number;
   y: number;
   size: number;
-  weight?: number | string;
+  font: FontId;
   fill: string;
-  family?: string;
   anchor?: "start" | "middle" | "end";
   lineHeight?: number;
   letterSpacing?: number;
-  italic?: boolean;
   opacity?: number;
 }): { svg: string; endY: number } {
   const lh = opts.lineHeight ?? 1.08;
-  const family = opts.family ?? SANS;
   const svg = opts.lines
-    .map(
-      (line, i) =>
-        `<text x="${opts.x}" y="${opts.y + i * opts.size * lh}" text-anchor="${opts.anchor ?? "start"}" font-family="${family}" font-size="${opts.size}" font-weight="${opts.weight ?? 800}"${opts.italic ? ' font-style="italic"' : ""}${opts.letterSpacing ? ` letter-spacing="${opts.letterSpacing}"` : ""}${opts.opacity !== undefined ? ` opacity="${opts.opacity}"` : ""} fill="${opts.fill}">${esc(line)}</text>`,
+    .map((line, i) =>
+      textPath({
+        font: opts.font,
+        text: line,
+        x: opts.x,
+        y: opts.y + i * opts.size * lh,
+        size: opts.size,
+        fill: opts.fill,
+        anchor: opts.anchor,
+        letterSpacing: opts.letterSpacing,
+        opacity: opts.opacity,
+      }),
     )
     .join("\n  ");
   return { svg, endY: opts.y + (opts.lines.length - 1) * opts.size * lh };
 }
 
-/** A rounded pill with centred text. Width is estimated from the text. */
+/** One line of text. */
+export function label(opts: {
+  text: string;
+  x: number;
+  y: number;
+  size: number;
+  font: FontId;
+  fill: string;
+  anchor?: "start" | "middle" | "end";
+  letterSpacing?: number;
+  opacity?: number;
+}): string {
+  return textPath(opts);
+}
+
+/** A rounded pill sized to its text. Returns markup and its width. */
 export function pill(opts: {
   x: number;
   y: number;
@@ -73,15 +105,17 @@ export function pill(opts: {
   size: number;
   fill: string;
   color: string;
+  font?: FontId;
   anchor?: "start" | "end" | "middle";
-  bold?: boolean;
-}): string {
+}): { svg: string; width: number; height: number } {
+  const font = opts.font ?? "display";
   const padX = opts.size * 0.9;
-  const w = Math.round(opts.text.length * opts.size * 0.58 + padX * 2);
+  const w = Math.round(measure(font, opts.text, opts.size) + padX * 2);
   const h = Math.round(opts.size * 1.9);
   const x = opts.anchor === "end" ? opts.x - w : opts.anchor === "middle" ? opts.x - w / 2 : opts.x;
-  return `<rect x="${x}" y="${opts.y}" rx="${h / 2}" width="${w}" height="${h}" fill="${opts.fill}"/>
-  <text x="${x + w / 2}" y="${opts.y + h * 0.66}" text-anchor="middle" font-family="${SANS}" font-size="${opts.size}" font-weight="${opts.bold === false ? 600 : 800}" fill="${opts.color}">${esc(opts.text)}</text>`;
+  const svg = `<rect x="${x}" y="${opts.y}" rx="${h / 2}" width="${w}" height="${h}" fill="${opts.fill}"/>
+  ${textPath({ font, text: opts.text, x: x + w / 2, y: opts.y + h * 0.68, size: opts.size, fill: opts.color, anchor: "middle" })}`;
+  return { svg, width: w, height: h };
 }
 
 /** Mixes a hex colour toward white (t>0) or black (t<0). */
@@ -100,9 +134,6 @@ export function isLight(hex: string): boolean {
   const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
   return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.6;
 }
-
-export const SANS = "Helvetica Neue, Helvetica, Arial, sans-serif";
-export const SERIF = "Georgia, 'Times New Roman', serif";
 
 /** An <image> that fills a box, cover-style, optionally clipped. */
 export function coverImage(dataUri: string, x: number, y: number, w: number, h: number, clipId?: string): string {

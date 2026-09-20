@@ -1,6 +1,7 @@
 import { db } from "@/server/db";
 import { TEMPLATES, DEFAULT_TEMPLATE_ID } from "@/server/creative/templates";
 import { photoDataUri } from "@/server/creative/photo";
+import { ensureFonts } from "@/server/creative/fonts";
 
 // ── Look previews for the picker ──────────────────────────────────────────
 // Each template rendered small, in the tenant's real brand colours, with a
@@ -23,6 +24,7 @@ export interface PhotoChoice {
 
 export interface PreviewContext {
   businessName: string;
+  category: string | null;
   brand: { primary: string; secondary: string; accent: string };
   cta: string | null;
   phone: string | null;
@@ -36,6 +38,7 @@ export async function lookPreviews(tenantId: string, heroAssetId?: string | null
   defaultLook: string;
   context: PreviewContext;
 }> {
+  await ensureFonts();
   const [tenant, brand, profile, photos] = await Promise.all([
     db.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
     db.brandSettings.findUnique({ where: { tenantId } }),
@@ -59,6 +62,7 @@ export async function lookPreviews(tenantId: string, heroAssetId?: string | null
       price: "₹199",
       when: "Sat & Sun",
       businessName: tenant.name,
+      category: profile?.category ?? null,
       cta: brand?.ctaPreference ?? "Order now",
       phone: profile?.phone ?? null,
       address: null,
@@ -91,6 +95,7 @@ export async function lookPreviews(tenantId: string, heroAssetId?: string | null
     defaultLook: brand?.flyerTemplate ?? DEFAULT_TEMPLATE_ID,
     context: {
       businessName: tenant.name,
+      category: profile?.category ?? null,
       brand: brandColors,
       cta: brand?.ctaPreference ?? null,
       phone: profile?.phone ?? null,

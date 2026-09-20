@@ -3,6 +3,7 @@ import { getStorageProvider, storageKey } from "@/server/storage";
 import { renderFlyerSvg, flyerSpecFromCampaign, type FlyerFormat } from "@/server/creative/flyer";
 import { audit } from "@/server/audit";
 import { photoDataUri } from "@/server/creative/photo";
+import { ensureFonts } from "@/server/creative/fonts";
 
 // ── Automatic campaign creatives ──────────────────────────────────────────
 // A campaign isn't done until it has something to post. The moment a
@@ -21,6 +22,7 @@ export async function createCampaignFlyers(params: {
   userId?: string | null;
 }): Promise<{ created: number; attached: number }> {
   const { tenantId, campaignId, userId } = params;
+  await ensureFonts();
 
   const [campaign, tenant, profile, brand, items] = await Promise.all([
     db.campaign.findFirst({ where: { id: campaignId, tenantId } }),
@@ -77,7 +79,7 @@ export async function createCampaignFlyers(params: {
 
     let assetId = byFormat.get(format);
     if (!assetId) {
-      const svg = renderFlyerSvg(spec, format, watermark, templateId, heroPhoto);
+      const svg = renderFlyerSvg(spec, format, watermark, templateId, heroPhoto, profile?.category ?? null);
       const buf = Buffer.from(svg, "utf8");
       const key = storageKey(tenantId, `${campaign.name.slice(0, 40)}-${format}.svg`);
       await storage.put(key, buf, "image/svg+xml");

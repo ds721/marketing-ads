@@ -36,8 +36,10 @@ export function renderFlyerSvg(
   watermark: ImageWatermarkOptions | null = null,
   templateId: string | null = null,
   photo: string | null = null,
+  category: string | null = null,
 ): string {
   return renderTemplate(templateId, {
+    category,
     format,
     headline: spec.headline,
     subhead: spec.subhead,

@@ -1,6 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import "./setup";
 import { renderFlyerSvg, flyerSpecFromCampaign } from "@/server/creative/flyer";
+import { ensureFonts } from "@/server/creative/fonts";
+
+// Text is rendered as vector outlines from bundled fonts, so assertions read
+// the <desc> metadata (the locked facts, verbatim) rather than text nodes.
+beforeAll(async () => {
+  await ensureFonts();
+});
 
 // ── Deterministic creative rule (§19) ─────────────────────────────────────
 // The point of this test: commercial text on a flyer is drawn by our code from
@@ -22,19 +29,23 @@ describe("flyer rendering", () => {
     cta: "Order now",
   });
 
-  it("prints the exact price it was given", () => {
+  it("prints the exact price it was given, as outlines", () => {
     const svg = renderFlyerSvg(spec, "square");
-    expect(svg).toContain("₹199");
+    expect(svg).toContain("<desc>");
+    expect(svg).toMatch(/<desc>[^<]*₹199/);
     expect(svg).not.toContain("₹1990");
     expect(svg).not.toContain("₹1,999");
+    // Real glyph outlines, not <text> fallbacks.
+    expect(svg).toContain("<path d=");
+    expect(svg).not.toContain("<text ");
   });
 
   it("includes the business contact details verbatim", () => {
     const svg = renderFlyerSvg(spec, "square");
-    expect(svg).toContain("+91 98410 55555");
-    expect(svg).toContain("SPICE HOUSE");
-    expect(svg).toContain("Saturday &amp; Sunday");
-    expect(svg).toContain("Order now");
+    const desc = svg.match(/<desc>([^<]*)<\/desc>/)?.[1] ?? "";
+    expect(desc).toContain("+91 98410 55555");
+    expect(desc).toContain("Saturday &amp; Sunday");
+    expect(desc).toContain("Order now");
   });
 
   it("is deterministic — same input, identical output", () => {
@@ -53,15 +64,13 @@ describe("flyer rendering", () => {
       "square",
     );
     expect(bare).not.toMatch(/₹/);
-    // Long headlines wrap across lines, so assert on the words.
-    expect(bare).toContain("NEW DISH");
-    expect(bare).toContain("LAUNCH");
+    expect(bare).toMatch(/<title>New dish launch<\/title>/);
   });
 
   it("escapes text so content can't break the SVG", () => {
     const svg = renderFlyerSvg({ ...spec, headline: 'Deal <script>alert("x")</script>' }, "story");
     expect(svg).not.toContain("<script>");
-    expect(svg).toContain("&lt;SCRIPT&gt;");
+    expect(svg).toContain("&lt;script&gt;");
   });
 
   it("renders every supported format", () => {
@@ -102,11 +111,13 @@ describe("flyer templates", () => {
         for (const p of [null, photo]) {
           const svg = t.render({ ...input, format, photo: p });
           expect(svg.startsWith("<svg"), `${t.id}/${format}`).toBe(true);
-          expect(svg, `${t.id}/${format} price`).toContain("₹199");
-          expect(svg, `${t.id}/${format} phone`).toContain("+91 98410 55555");
-          expect(svg, `${t.id}/${format} cta`).toContain("Order now");
-          expect(svg, `${t.id}/${format} when`).toMatch(/Saturday &amp; Sunday|SATURDAY &amp; SUNDAY/);
-          expect(svg).not.toContain("₹1990");
+          const desc = svg.match(/<desc>([^<]*)<\/desc>/)?.[1] ?? "";
+          expect(desc, `${t.id}/${format} price`).toContain("₹199");
+          expect(desc, `${t.id}/${format} phone`).toContain("+91 98410 55555");
+          expect(desc, `${t.id}/${format} cta`).toContain("Order now");
+          expect(desc, `${t.id}/${format} when`).toContain("Saturday &amp; Sunday");
+          expect(svg).not.toContain("NaN");
+          expect(svg, `${t.id}/${format} outlines`).toContain("<path d=");
         }
       }
     }
