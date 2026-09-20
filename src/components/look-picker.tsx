@@ -15,15 +15,19 @@ export function LookPicker({
   defaultLook,
   defaultPhotoId = null,
   compact = false,
+  onChange,
 }: {
   looks: LookPreview[];
   photos: PhotoChoice[];
   defaultLook: string;
   defaultPhotoId?: string | null;
   compact?: boolean;
+  onChange?: (look: string, photoId: string | null) => void;
 }) {
-  const [look, setLook] = useState(defaultLook);
-  const [photoId, setPhotoId] = useState<string | null>(defaultPhotoId);
+  const [look, setLookState] = useState(defaultLook);
+  const [photoId, setPhotoIdState] = useState<string | null>(defaultPhotoId);
+  const setLook = (l: string) => { setLookState(l); onChange?.(l, photoId); };
+  const setPhotoId = (p: string | null) => { setPhotoIdState(p); onChange?.(look, p); };
   const chosen = looks.find((l) => l.id === look);
 
   return (

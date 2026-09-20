@@ -21,10 +21,20 @@ export interface PhotoChoice {
   filename: string;
 }
 
+export interface PreviewContext {
+  businessName: string;
+  brand: { primary: string; secondary: string; accent: string };
+  cta: string | null;
+  phone: string | null;
+  address: string | null;
+  watermark: { position: "TOP_LEFT" | "TOP_RIGHT" | "BOTTOM_LEFT" | "BOTTOM_RIGHT" | "CENTER"; opacity: number; text: string } | null;
+}
+
 export async function lookPreviews(tenantId: string, heroAssetId?: string | null): Promise<{
   looks: LookPreview[];
   photos: PhotoChoice[];
   defaultLook: string;
+  context: PreviewContext;
 }> {
   const [tenant, brand, profile, photos] = await Promise.all([
     db.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
@@ -69,5 +79,26 @@ export async function lookPreviews(tenantId: string, heroAssetId?: string | null
     };
   });
 
-  return { looks, photos, defaultLook: brand?.flyerTemplate ?? DEFAULT_TEMPLATE_ID };
+  const brandColors = {
+    primary: brand?.primaryColor ?? "#D6367B",
+    secondary: brand?.secondaryColor ?? "#2E2447",
+    accent: brand?.accentColor ?? "#F5A31C",
+  };
+
+  return {
+    looks,
+    photos,
+    defaultLook: brand?.flyerTemplate ?? DEFAULT_TEMPLATE_ID,
+    context: {
+      businessName: tenant.name,
+      brand: brandColors,
+      cta: brand?.ctaPreference ?? null,
+      phone: profile?.phone ?? null,
+      address: profile?.address ?? profile?.city ?? null,
+      watermark:
+        brand?.watermarkEnabled !== false
+          ? { position: brand?.watermarkPosition ?? "BOTTOM_RIGHT", opacity: brand?.watermarkOpacity ?? 75, text: brand?.watermarkText ?? tenant.name }
+          : null,
+    },
+  };
 }
