@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { watermarkVideoAction, deleteAssetAction } from "@/server/actions/assets";
+import { createReelFromVideoAction } from "@/server/actions/marketing";
 import { Pill } from "@/components/ui";
 
 export function VideoCard({
@@ -52,6 +53,16 @@ export function VideoCard({
         {error && <span className="text-[11px] text-chili-deep">{error}</span>}
         {done && <span className="text-[11px] text-leaf-deep">Branded copy added.</span>}
 
+        {canEdit && (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => start(() => createReelFromVideoAction(slug, asset.id))}
+            className="text-[12px] font-bold bg-beet text-white rounded-[8px] px-3 py-1.5 cursor-pointer disabled:opacity-50"
+          >
+            Post as a Reel
+          </button>
+        )}
         {canEdit && (
           <div className="flex items-center justify-between gap-2 mt-auto pt-1">
             {!asset.watermarked && ffmpegReady && (

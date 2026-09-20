@@ -72,11 +72,13 @@ async function publishContent(job: Job): Promise<void> {
     // Instagram fetches the image itself, so it needs a link it can reach —
     // signed and expiring, so the asset isn't made public for good — and it
     // only accepts JPEG, so SVG flyers and PNG uploads are converted first.
-    const mediaUrl = item.assetId ? publicAssetUrl(await ensureJpegAsset(item.assetId)) : null;
+    const media = item.assetId ? await db.asset.findUnique({ where: { id: item.assetId } }) : null;
+    const isVideo = media?.kind === "VIDEO";
+    const mediaUrl = media ? publicAssetUrl(isVideo ? media.id : await ensureJpegAsset(media.id)) : null;
 
     const result = await adapter.publish({
       contentItemId: item.id,
-      kind: item.contentType === "STORY" ? "STORY" : "POST",
+      kind: isVideo ? "REEL" : item.contentType === "STORY" ? "STORY" : "POST",
       text: caption,
       mediaUrl,
       accessToken: decryptSecret(account.accessTokenEnc),

@@ -49,7 +49,7 @@ export function ImagePicker({
   slug: string;
   contentId: string;
   selectedId: string | null;
-  images: Array<{ id: string; filename: string; kind: string }>;
+  images: Array<{ id: string; filename: string; kind: string; poster?: string | null }>;
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string>();
@@ -83,11 +83,25 @@ export function ImagePicker({
             )}
             aria-pressed={img.id === selected}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/api/assets/${img.id}`} alt={img.filename} className="w-full h-full object-cover" loading="lazy" />
+            {img.kind === "VIDEO" ? (
+              img.poster ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={img.poster} alt={img.filename} className="w-full h-full object-cover" loading="lazy" />
+              ) : (
+                <span className="absolute inset-0 flex items-center justify-center text-[12px] font-bold text-ink-soft">Video</span>
+              )
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={`/api/assets/${img.id}`} alt={img.filename} className="w-full h-full object-cover" loading="lazy" />
+            )}
             {img.kind === "FLYER" && (
               <span className="absolute top-1.5 left-1.5">
                 <Pill tone="beet">Flyer</Pill>
+              </span>
+            )}
+            {img.kind === "VIDEO" && (
+              <span className="absolute top-1.5 left-1.5">
+                <Pill tone="chili">▶ Reel</Pill>
               </span>
             )}
             {img.id === selected && (
@@ -107,11 +121,13 @@ export function PublishNow({
   contentId,
   ready,
   reason,
+  label,
 }: {
   slug: string;
   contentId: string;
   ready: boolean;
   reason?: string;
+  label?: string;
 }) {
   const [pending, start] = useTransition();
   const [result, setResult] = useState<FormState>({});
@@ -126,7 +142,7 @@ export function PublishNow({
         onClick={() => start(async () => setResult(await publishNowAction(slug, contentId)))}
         className={btnStyles.primary + " w-full"}
       >
-        {pending ? "Posting to Instagram…" : "Publish now"}
+        {pending ? "Posting to Instagram…" : (label ?? "Publish now")}
       </button>
       {!ready && reason && <span className="text-[12px] text-ink-faint text-center">{reason}</span>}
     </div>

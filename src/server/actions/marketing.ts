@@ -323,7 +323,7 @@ export async function attachAssetAction(slug: string, contentId: string, assetId
   if (assetId) {
     const asset = await db.asset.findUnique({ where: { id: assetId } });
     assertTenantOwns(ctx, asset);
-    if (asset.kind === "VIDEO") return { error: "Video posts aren't supported yet — pick a photo or flyer." };
+    // A video makes this post a Reel when it publishes.
   }
 
   await db.contentItem.update({ where: { id: item.id }, data: { assetId } });
@@ -343,7 +343,7 @@ export async function publishNowAction(slug: string, contentId: string): Promise
 
   if (item.status === "PUBLISHED") return { error: "This post is already live." };
   if (item.platform === "instagram" && !item.assetId) {
-    return { error: "Instagram needs a photo. Pick one below first." };
+    return { error: "Instagram needs a photo or video. Pick one below first." };
   }
   const connected = await db.socialAccount.findFirst({
     where: { tenantId: ctx.tenant.id, provider: item.platform, status: "CONNECTED" },
@@ -402,4 +402,32 @@ export async function changeLookAction(
   await audit({ tenantId: ctx.tenant.id, userId: ctx.userId, action: "campaign.change_look", targetType: "campaign", targetId: campaign.id, meta: { templateId, heroAssetId } });
   revalidatePath(`/app/${slug}/campaigns/${campaign.id}`);
   return { ok: true, message: "Redrawn." };
+}
+
+
+// ── Reels from the video library ──────────────────────────────────────────
+
+/** Turns a library video into a ready-to-post Reel item and opens it. */
+export async function createReelFromVideoAction(slug: string, assetId: string): Promise<void> {
+  const ctx = await requireTenant(slug, "EDITOR");
+  const asset = await db.asset.findUnique({ where: { id: assetId } });
+  assertTenantOwns(ctx, asset);
+  if (asset.kind !== "VIDEO") throw new Error("Only videos can become Reels.");
+
+  const when = new Date();
+  when.setHours(when.getHours() + 1, 0, 0, 0);
+  const item = await db.contentItem.create({
+    data: {
+      tenantId: ctx.tenant.id,
+      platform: "instagram",
+      contentType: "REEL",
+      title: asset.filename.replace(/\.[a-z0-9]+$/i, "").replace(/^Branded — /, ""),
+      body: "",
+      assetId: asset.id,
+      scheduledAt: when,
+      status: "DRAFT",
+    },
+  });
+  await audit({ tenantId: ctx.tenant.id, userId: ctx.userId, action: "content.reel_from_video", targetType: "content", targetId: item.id });
+  redirect(`/app/${slug}/content/${item.id}`);
 }

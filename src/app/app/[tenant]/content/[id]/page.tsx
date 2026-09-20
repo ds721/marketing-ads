@@ -26,7 +26,7 @@ export default async function ContentPage({
 
   const [images, attached, connected] = await Promise.all([
     db.asset.findMany({
-      where: { tenantId: ctx.tenant.id, kind: { in: ["IMAGE", "FLYER", "GENERATED"] }, sourceAssetId: null },
+      where: { tenantId: ctx.tenant.id, kind: { in: ["IMAGE", "FLYER", "GENERATED", "VIDEO"] }, sourceAssetId: null },
       orderBy: { createdAt: "desc" },
       take: 24,
     }),
@@ -62,16 +62,16 @@ export default async function ContentPage({
           </section>
 
           <section>
-            <SectionLabel>Photo</SectionLabel>
+            <SectionLabel>Photo or video</SectionLabel>
             <p className="text-[13px] text-ink-soft mb-3">
-              Instagram needs one. Pick a photo you&apos;ve uploaded, or a flyer Markit made.
+              Instagram needs one. A photo or flyer posts as a picture; a video posts as a Reel.
             </p>
             {canEdit && !isLive ? (
               <ImagePicker
                 slug={slug}
                 contentId={item.id}
                 selectedId={item.assetId}
-                images={images.map((a) => ({ id: a.id, filename: a.filename, kind: a.kind }))}
+                images={images.map((a) => ({ id: a.id, filename: a.filename, kind: a.kind, poster: a.posterKey ? `/api/assets/${a.id}/poster` : null }))}
               />
             ) : attached ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -129,9 +129,10 @@ export default async function ContentPage({
                   !connected
                     ? "Connect Instagram first"
                     : !item.assetId
-                      ? "Pick a photo first"
+                      ? "Pick a photo or video first"
                       : undefined
                 }
+                label={attached?.kind === "VIDEO" ? "Post as a Reel now" : undefined}
               />
             )}
             {isLive && (

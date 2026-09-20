@@ -16,6 +16,7 @@ const GRAPH = "https://graph.instagram.com/v21.0";
 const TIMEOUT_MS = 30_000;
 const CONTAINER_POLL_MS = 2_000;
 const CONTAINER_MAX_WAIT_MS = 60_000;
+const REEL_MAX_WAIT_MS = 5 * 60_000; // video transcoding takes longer
 
 async function graphGet(path: string, params: Record<string, string>): Promise<Record<string, unknown>> {
   const controller = new AbortController();
@@ -38,9 +39,9 @@ async function graphGet(path: string, params: Record<string, string>): Promise<R
  * the container reports FINISHED fails with a "media not ready" error, so we
  * wait for it — and surface a real reason if Instagram rejects the image.
  */
-async function waitForContainer(containerId: string, accessToken: string): Promise<void> {
+async function waitForContainer(containerId: string, accessToken: string, maxWait = CONTAINER_MAX_WAIT_MS): Promise<void> {
   const started = Date.now();
-  while (Date.now() - started < CONTAINER_MAX_WAIT_MS) {
+  while (Date.now() - started < maxWait) {
     const status = await graphGet(`/${containerId}`, {
       fields: "status_code,status",
       access_token: accessToken,
@@ -49,7 +50,7 @@ async function waitForContainer(containerId: string, accessToken: string): Promi
     if (code === "FINISHED") return;
     if (code === "ERROR" || code === "EXPIRED") {
       log.error({ operation: "social.publish", provider: "instagram", status: "error", error: `container_${code}`, detail: String(status.status ?? "") });
-      throw new Error("Instagram couldn't use that image. Try a JPEG between square and 4:5 portrait.");
+      throw new Error("Instagram couldn't use that media. Images: JPEG, square to 4:5. Reels: MP4, 9:16, up to 90 seconds.");
     }
     await new Promise((r) => setTimeout(r, CONTAINER_POLL_MS));
   }
@@ -102,19 +103,22 @@ class InstagramAdapter implements PlatformAdapter {
   async publish(input: PublishInput): Promise<PublishResult> {
     if (!this.isConfigured()) throw new PlatformNotConfiguredError(this.name);
     if (!input.mediaUrl) {
-      throw new Error("Instagram needs an image. Add a photo or flyer to this post first.");
+      throw new Error("Instagram needs a photo or video. Add one to this post first.");
     }
 
+    const isVideo = input.kind === "REEL";
     const container = await graphPost(`/${input.accountId}/media`, {
-      image_url: input.mediaUrl,
       access_token: input.accessToken,
-      // Stories take no caption; the flyer carries the message.
-      ...(input.kind === "STORY" ? { media_type: "STORIES" } : { caption: input.text }),
+      ...(isVideo
+        ? { media_type: "REELS", video_url: input.mediaUrl, caption: input.text, share_to_feed: "true" }
+        : input.kind === "STORY"
+          ? { media_type: "STORIES", image_url: input.mediaUrl }
+          : { image_url: input.mediaUrl, caption: input.text }),
     });
     const creationId = String(container.id ?? "");
-    if (!creationId) throw new Error("Instagram didn't accept the image. It has not been published.");
+    if (!creationId) throw new Error("Instagram didn't accept the media. It has not been published.");
 
-    await waitForContainer(creationId, input.accessToken);
+    await waitForContainer(creationId, input.accessToken, isVideo ? REEL_MAX_WAIT_MS : CONTAINER_MAX_WAIT_MS);
 
     const published = await graphPost(`/${input.accountId}/media_publish`, {
       creation_id: creationId,
