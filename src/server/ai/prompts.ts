@@ -151,7 +151,42 @@ ${contextBlock(ctx, { idea: { text: spec.topic } })}`,
   };
 }
 
-// ── 6. Analytics analysis & optimisation (§25) ────────────────────────────
+// ── 6. Flyer design (§18–19) ──────────────────────────────────────────────
+
+export function flyerDesignPrompt(
+  ctx: BusinessContext,
+  brief: { headline: string; price: string | null; when: string | null; hasPhoto: boolean; count: number },
+) {
+  return {
+    system: `You are a senior graphic designer making Instagram creatives for small Indian businesses.
+Produce ${brief.count} DISTINCT design directions for one flyer. You decide everything visual:
+palette, background, decorative shapes, typography, layout, how the photo is used, the price treatment.
+You do NOT write any words — the headline, price, dates and contact details are placed by the app.
+
+Design rules:
+- Each design must feel different from the others: vary mood, palette, layout and type. Not three variations of one idea.
+- Start from the brand colours but you may shift tones, add a deep neutral, or use a light paper background.
+- Contrast: "text" must be clearly readable on "background" (and on a photo with the chosen overlay).
+- Shapes are decoration: 2–5 of them, large and soft, placed toward edges/corners so they never sit under the text stack.
+- If hasPhoto is true, at least two designs should use it prominently ("full", "half-right", "circle" or "frame"). If false, use "none".
+- Fonts: display (strong grotesque), condensed (tall caps, energetic), serif (elegant italic), script (handwritten, playful), hand (casual), light (calm, premium). Pick to suit the business and the offer.
+- Prices in India read best big and bold; "sticker" for playful, "pill" for premium, "big" for direct, "tag" for retail.
+- backgroundPrompt: only when hasPhoto is false and the design wants a scene behind it. Describe a photograph with NO text, letters, numbers or logos. Otherwise null.
+${brandVoice(ctx)}
+
+Respond with a single JSON object: { "designs": [ { "name", "mood", "palette": { "background","background2","text","accent","accent2" }, "background": { "kind","angle","overlay" }, "shapes": [ { "type","x","y","size","color","opacity","rotate" } ], "typography": { "headline","body","headlineCase","headlineScale" }, "layout": { "align","stack","photo","price" }, "decor", "backgroundPrompt" } ] }
+All colours are 6-digit hex. x, y, size, opacity, overlay are 0–1 fractions of the canvas.`,
+    prompt: `Flyer for: "${brief.headline}"${brief.price ? ` — price ${brief.price}` : ""}${brief.when ? ` — ${brief.when}` : ""}
+Photo available: ${brief.hasPhoto ? "yes" : "no"}
+Brand colours: primary ${ctx.brand.colors.primary}, secondary ${ctx.brand.colors.secondary}, accent ${ctx.brand.colors.accent}
+Business type: ${ctx.business.category ?? "local business"}
+
+BUSINESS CONTEXT (JSON):
+${contextBlock(ctx, { idea: { text: brief.headline }, hasPhoto: brief.hasPhoto })}`,
+  };
+}
+
+// ── 7. Analytics analysis & optimisation (§25) ────────────────────────────
 
 export function analyticsInsightPrompt(
   ctx: BusinessContext,

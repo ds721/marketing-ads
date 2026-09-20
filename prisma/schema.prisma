@@ -401,9 +401,11 @@ model Campaign {
   // Locked commercial facts (price, dates, phone) — rendered deterministically,
   // never left to an AI model to (re)generate. See §19 of the product spec.
   facts         Json?
-  // Creative choices the owner made before generating: which look, which photo.
+  // Creative choices the owner made before generating: which photo, and the
+  // AI-authored design spec (see designSpecSchema) the flyers are drawn from.
   templateId    String?
   heroAssetId   String?
+  designSpec    Json?
   proposal      Json? // full AI proposal for review UI
   generatedBy   String?
   promptVersion String?

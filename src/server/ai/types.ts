@@ -53,6 +53,21 @@ export class AiNotConfiguredError extends Error {
   }
 }
 
+/** The provider account itself is the problem: no credit, or rate-limited. */
+export class AiQuotaError extends Error {
+  constructor(
+    public provider: string,
+    public reason: "no_credit" | "rate_limited",
+  ) {
+    super(
+      reason === "no_credit"
+        ? `${provider} account has no credit left. Add credit on the provider's billing page.`
+        : `${provider} is rate-limiting requests right now. Try again in a minute.`,
+    );
+    this.name = "AiQuotaError";
+  }
+}
+
 export class AiOutputInvalidError extends Error {
   constructor(schemaName: string, detail: string) {
     super(`AI returned output that failed ${schemaName} validation: ${detail}`);

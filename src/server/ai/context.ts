@@ -17,6 +17,7 @@ export interface BusinessContext {
     postingFrequency: string | null;
   };
   brand: {
+    colors: { primary: string; secondary: string; accent: string };
     tone: string | null;
     description: string | null;
     wordsToUse: string[];
@@ -71,6 +72,11 @@ export async function buildBusinessContext(tenantId: string): Promise<BusinessCo
       postingFrequency: profile?.postingFrequency ?? null,
     },
     brand: {
+      colors: {
+        primary: brand?.primaryColor ?? "#D6367B",
+        secondary: brand?.secondaryColor ?? "#2E2447",
+        accent: brand?.accentColor ?? "#F5A31C",
+      },
       tone: brand?.toneOfVoice ?? null,
       description: brand?.brandDescription ?? null,
       wordsToUse: brand?.wordsToUse ?? [],

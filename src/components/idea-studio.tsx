@@ -1,25 +1,26 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { submitIdeaAction } from "@/server/actions/marketing";
+import { submitIdeaAction, type DesignOptionDto } from "@/server/actions/marketing";
 import type { FormState } from "@/server/actions/auth";
 import { FormError, btnStyles } from "@/components/ui";
 import { LookPicker } from "@/components/look-picker";
+import { DesignPicker } from "@/components/design-picker";
+import { PhotoGenerator } from "@/components/photo-generator";
+import { renderDesign } from "@/server/creative/design-renderer";
 import { renderTemplate } from "@/server/creative/templates";
 import { cleanText } from "@/server/creative/svg";
 import { ensureFonts, fontsReady } from "@/server/creative/fonts";
 import type { LookPreview, PhotoChoice, PreviewContext } from "@/server/creative/looks";
 import { cn } from "@/lib/utils";
-import { PhotoGenerator } from "@/components/photo-generator";
 
 const initial: FormState = {};
 
 /**
  * Quick read of the owner's sentence for the live preview only. The real
- * facts are extracted server-side by the AI when they submit — this just
- * lets the preview react as they type.
+ * facts are extracted server-side by the AI when they submit.
  */
-function sketch(text: string): { headline: string; price: string | null; when: string | null } {
+export function sketch(text: string): { headline: string; price: string | null; when: string | null } {
   const t = text.trim();
   const price = t.match(/(?:₹|rs\.?\s?|inr\s?)(\d[\d,]*)/i)?.[1] ?? null;
   const lower = t.toLowerCase();
@@ -30,7 +31,6 @@ function sketch(text: string): { headline: string; price: string | null; when: s
     : /weekend/.test(lower) || (sat && sun) ? "Saturday & Sunday"
     : sat ? "Saturday" : sun ? "Sunday"
     : lower.match(/\b(monday|tuesday|wednesday|thursday|friday)\b/)?.[1]?.replace(/^\w/, (c) => c.toUpperCase()) ?? null;
-  // Headline: the first clause, minus the price/date words so they aren't said twice.
   let headline = cleanText(t.split(/[.\n]/)[0] ?? "");
   headline = headline
     .replace(/(?:for\s+)?(?:₹|rs\.?\s?|inr\s?)\d[\d,]*/i, "")
@@ -58,34 +58,36 @@ export function IdeaStudio({
 }) {
   const [state, action, pending] = useActionState(submitIdeaAction.bind(null, slug), initial);
   const [text, setText] = useState("");
-  const [look, setLook] = useState(defaultLook);
   const [photoId, setPhotoId] = useState<string | null>(photos[0]?.id ?? null);
+  const [design, setDesign] = useState<DesignOptionDto | null>(null);
   const [shape, setShape] = useState<"square" | "story">("square");
   const [fonts, setFonts] = useState(fontsReady());
   useEffect(() => {
     ensureFonts().then(() => setFonts(true));
   }, []);
 
+  const brief = useMemo(() => sketch(text), [text]);
+
   const svg = useMemo(() => {
-    // `fonts` flips once the outlines are available; re-render then.
     void fonts;
-    const s = sketch(text);
-    return renderTemplate(look, {
+    const input = {
       format: shape,
-      headline: s.headline,
-      price: s.price,
-      when: s.when,
+      headline: brief.headline,
+      price: brief.price,
+      when: brief.when,
       businessName: context.businessName,
       category: context.category,
       cta: context.cta ?? "Order now",
       phone: context.phone,
       address: context.address,
       brand: context.brand,
-      // Inline SVG in the page may load our private asset route — the viewer is logged in.
       photo: photoId ? `/api/assets/${photoId}` : null,
       watermark: context.watermark ? { ...context.watermark, logoDataUri: null } : null,
-    });
-  }, [text, look, photoId, shape, context, fonts]);
+    };
+    // Before a design is chosen, show the brand's default look so the page
+    // isn't empty; once chosen, the preview is the AI's design.
+    return design ? renderDesign(design.spec, input) : renderTemplate(defaultLook, input);
+  }, [brief, photoId, shape, context, design, defaultLook, fonts]);
 
   return (
     <div className="grid lg:grid-cols-[1fr_400px] gap-8 items-start">
@@ -103,33 +105,34 @@ export function IdeaStudio({
           className="w-full bg-surface border-[1.5px] border-line-strong rounded-[16px] px-5 py-4 text-[15px] text-ink placeholder:text-ink-faint focus:border-beet focus:outline-none shadow-soft resize-none"
         />
 
-        <div className="bg-surface border border-line rounded-[16px] p-4">
+        <div className="bg-surface border border-line rounded-[16px] p-4 flex flex-col gap-5">
           <LookPicker
             slug={slug}
             looks={looks}
             photos={photos}
             defaultLook={defaultLook}
             defaultPhotoId={photoId}
-            onChange={(l, p) => { setLook(l); setPhotoId(p); }}
+            photoOnly
+            onChange={(_l, p) => setPhotoId(p)}
             generator={
               canGeneratePhotos
-                ? (onGenerated) => (
-                    <PhotoGenerator slug={slug} suggestion={sketch(text).headline} onGenerated={onGenerated} />
-                  )
+                ? (onGenerated) => <PhotoGenerator slug={slug} suggestion={brief.headline} onGenerated={onGenerated} />
                 : undefined
             }
           />
           {!canGeneratePhotos && (
-            <p className="text-[11.5px] text-ink-faint mt-3">
+            <p className="text-[11.5px] text-ink-faint -mt-3">
               Want Markit to make a photo when you don&apos;t have one? That switches on when the
               platform has an OpenAI key (<code className="font-mono">AI_PROVIDER=openai</code>).
             </p>
           )}
+          <DesignPicker slug={slug} brief={brief} heroAssetId={photoId} selected={design} onSelect={setDesign} />
         </div>
 
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <span className="text-xs text-ink-faint max-w-[40ch]">
-            The AI writes the caption, locks the price and dates, and makes a post and a story in this look.
+            The AI writes the caption, locks the price and dates, and draws a post and a story in
+            {design ? ` “${design.spec.name}”.` : " your brand's default look — or tap Design it first."}
           </span>
           <button type="submit" disabled={pending} className={btnStyles.idea}>
             {pending ? "Working on it…" : "Make it happen"}

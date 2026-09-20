@@ -110,7 +110,7 @@ npm test
 npm run build
 ```
 
-112 tests cover tenant isolation, role permissions, AI schema validation and the
+115 tests cover tenant isolation, role permissions, AI schema validation and the
 anti-invention guardrails, token encryption, upload sniffing, plan limits, form
 input handling, video planning, brand watermarking, route-collision safety,
 OAuth state forgery, admin revenue rules, and the full "one sentence →
@@ -185,9 +185,18 @@ posts it manually until an adapter exists.
 
 ## Flyers
 
-Six looks — Photo, Split, Framed, Playful, Bold, Minimal — each a pure
-function of the same input, so a campaign can be redrawn in any look. The
-owner picks the look and a photo before generating, with a live preview.
+**The AI is the art director; the app is the press.** For each offer the
+model proposes several distinct design directions as a validated spec —
+palette, background, shapes, typography, layout, photo treatment, price
+style (`designSpecSchema`) — and `design-renderer.ts` draws them. The owner
+picks from real previews in their own colours, with a live preview as they
+type, and can ask for more directions or redesign later. The model never
+writes a word onto the flyer: text is placed by the renderer from the
+locked facts, and it corrects the model's colour choices if contrast would
+make text unreadable. With an image key, a design can also request a
+painted background scene (no text) and the model supplies it.
+
+Six hand-made looks remain as the brand default and the demo-mode fallback.
 
 Text is drawn as vector outlines from seven bundled OFL fonts
 (`public/fonts`), so flyers are identical on every machine and no server

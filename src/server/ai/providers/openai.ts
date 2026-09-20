@@ -2,6 +2,7 @@ import type { z } from "zod";
 import {
   AiNotConfiguredError,
   AiOutputInvalidError,
+  AiQuotaError,
   type AIProvider,
   type ImageGenerationInput,
   type ImageGenerationResult,
@@ -57,13 +58,24 @@ export class OpenAIProvider implements AIProvider {
         }
 
         lastError = `HTTP ${res.status}`;
-        // 4xx other than rate-limit won't succeed on retry.
-        if (res.status !== 429 && res.status < 500) {
+        if (res.status === 429) {
+          // Two very different 429s: out of credit (never recovers on retry)
+          // vs. a momentary rate limit (does).
+          const body = (await res.json().catch(() => ({}))) as { error?: { type?: string; code?: string } };
+          const code = body.error?.code ?? body.error?.type ?? "";
+          if (/insufficient_quota|credit_balance_exhausted|billing/.test(code)) {
+            log.error({ operation, provider: this.name, status: "error", error: "no_credit" });
+            throw new AiQuotaError("OpenAI", "no_credit");
+          }
+          if (attempt === MAX_ATTEMPTS) throw new AiQuotaError("OpenAI", "rate_limited");
+        } else if (res.status < 500) {
+          // Other 4xx won't succeed on retry.
           const detail = await res.text();
           log.error({ operation, provider: this.name, status: "error", error: lastError, durationMs: Date.now() - started });
           throw new Error(`OpenAI request failed (${res.status}): ${detail.slice(0, 300)}`);
         }
       } catch (err) {
+        if (err instanceof AiQuotaError) throw err;
         if (err instanceof Error && /OpenAI request failed/.test(err.message)) throw err;
         lastError = err instanceof Error && err.name === "AbortError" ? "timed out" : String(err);
       } finally {

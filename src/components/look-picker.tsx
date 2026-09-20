@@ -19,6 +19,7 @@ export function LookPicker({
   onChange,
   generator,
   slug,
+  photoOnly = false,
 }: {
   looks: LookPreview[];
   photos: PhotoChoice[];
@@ -30,6 +31,8 @@ export function LookPicker({
   generator?: (onGenerated: (assetId: string) => void) => React.ReactNode;
   /** Tenant slug — enables the inline upload tile. */
   slug?: string;
+  /** Hide the fixed looks; the AI designs instead. */
+  photoOnly?: boolean;
 }) {
   const [look, setLookState] = useState(defaultLook);
   const [photoId, setPhotoIdState] = useState<string | null>(defaultPhotoId);
@@ -46,6 +49,7 @@ export function LookPicker({
       <input type="hidden" name="template" value={look} />
       <input type="hidden" name="heroAssetId" value={photoId ?? ""} />
 
+      {!photoOnly && (
       <div>
         <div className="text-[13px] font-semibold mb-2">Look</div>
         <div className={cn("grid gap-2", compact ? "grid-cols-3 sm:grid-cols-6" : "grid-cols-3 sm:grid-cols-6")}>
@@ -69,12 +73,13 @@ export function LookPicker({
         </div>
         {chosen && <p className="text-[12.5px] text-ink-soft mt-2">{chosen.blurb}</p>}
       </div>
+      )}
 
       <div>
         <div className="text-[13px] font-semibold mb-2">
           Photo{" "}
           <span className="font-normal text-ink-faint">
-            {chosen?.wantsPhoto ? "— this look works best with one" : "— optional"}
+            {photoOnly ? "— your own, or made by AI" : chosen?.wantsPhoto ? "— this look works best with one" : "— optional"}
           </span>
         </div>
         <div className="flex gap-2 flex-wrap">

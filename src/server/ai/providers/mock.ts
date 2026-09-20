@@ -19,7 +19,8 @@ import { PROMPT_VERSIONS } from "@/server/ai/schemas";
 
 interface PromptContext {
   business?: { name?: string; category?: string; city?: string };
-  brand?: { tone?: string; cta?: string };
+  brand?: { tone?: string; cta?: string; colors?: { primary: string; secondary: string; accent: string } };
+  hasPhoto?: boolean;
   products?: Array<{ name?: string; price?: string | null; kind?: string }>;
   offers?: Array<{ title?: string; price?: string | null }>;
   audience?: { description?: string };
@@ -124,6 +125,8 @@ export class MockAIProvider implements AIProvider {
         return this.insight(ctx);
       case PROMPT_VERSIONS.videoScript:
         return this.videoScript(ctx);
+      case PROMPT_VERSIONS.flyerDesign:
+        return this.flyerDesign(ctx);
       default:
         throw new AiOutputInvalidError(schemaName, "mock provider has no template for this schema");
     }
@@ -150,7 +153,16 @@ export class MockAIProvider implements AIProvider {
       category,
       summary: text.slice(0, 200) || "New marketing idea",
       facts: {
-        offerName: text.split(/[.,\n]/)[0]?.trim().slice(0, 80) || null,
+        // The offer name is the sentence minus the price and the day — those
+        // are separate facts and would otherwise be printed twice.
+        offerName:
+          (text.split(/[.,\n]/)[0] ?? "")
+            .replace(/(?:for\s+)?(?:₹|rs\.?\s?|inr\s?)\d[\d,]*/i, "")
+            .replace(/\b(this|on|for)?\s*(weekend|today|tomorrow|saturday|sunday|monday|tuesday|wednesday|thursday|friday)(\s+only)?\b/gi, "")
+            .replace(/\s{2,}/g, " ")
+            .replace(/\s+[-–,]\s*$/, "")
+            .trim()
+            .slice(0, 80) || null,
         price: price ? `₹${price}` : null,
         discount,
         startDate: window.start,
@@ -281,6 +293,59 @@ export class MockAIProvider implements AIProvider {
       hashtags: ["#" + city.replace(/\s/g, ""), "#local", "#" + (ctx.business?.category ?? "food").toLowerCase().replace(/\s/g, "")],
       durationSec: 15,
       format: "reel" as const,
+    };
+  }
+
+  /** Three deliberately different directions from the brand colours. */
+  private flyerDesign(ctx: PromptContext) {
+    const c = ctx.brand?.colors ?? { primary: "#D6367B", secondary: "#2E2447", accent: "#F5A31C" };
+    const photo = Boolean(ctx.hasPhoto);
+    return {
+      designs: [
+        {
+          name: "Bold & direct",
+          mood: "[Demo AI] Loud, confident, brand-forward",
+          palette: { background: c.primary, background2: c.secondary, text: "#FFFFFF", accent: c.accent, accent2: "#FFFFFF" },
+          background: { kind: "gradient", angle: 135, overlay: 0.55 },
+          shapes: [
+            { type: "blob", x: 0.9, y: 0.1, size: 0.6, color: c.accent, opacity: 0.22 },
+            { type: "circle", x: 0.08, y: 0.92, size: 0.4, color: c.accent, opacity: 0.14 },
+          ],
+          typography: { headline: "condensed", body: "body", headlineCase: "upper", headlineScale: 1 },
+          layout: { align: "left", stack: "middle", photo: photo ? "circle" : "none", price: "big" },
+          decor: "auto",
+          backgroundPrompt: null,
+        },
+        {
+          name: "Warm paper",
+          mood: "[Demo AI] Light, friendly, handwritten",
+          palette: { background: "#FFF6EC", background2: "#FFE8D2", text: c.secondary, accent: c.primary, accent2: c.accent },
+          background: { kind: "gradient", angle: 180, overlay: 0.3 },
+          shapes: [
+            { type: "blob", x: 0.85, y: 0.15, size: 0.7, color: c.accent, opacity: 0.45 },
+            { type: "circle", x: 0.12, y: 0.9, size: 0.5, color: c.primary, opacity: 0.15 },
+            { type: "ring", x: 0.9, y: 0.8, size: 0.2, color: c.secondary, opacity: 0.12 },
+          ],
+          typography: { headline: "script", body: "body", headlineCase: "title", headlineScale: 1 },
+          layout: { align: "left", stack: "bottom", photo: photo ? "half-top" : "none", price: "sticker" },
+          decor: "auto",
+          backgroundPrompt: null,
+        },
+        {
+          name: "Night editorial",
+          mood: "[Demo AI] Dark, premium, magazine-like",
+          palette: { background: "#1A1426", background2: "#2A1F3D", text: "#FFFFFF", accent: c.accent, accent2: c.primary },
+          background: { kind: photo ? "photo" : "gradient", angle: 160, overlay: 0.65 },
+          shapes: [
+            { type: "arc", x: 0.5, y: 0.5, size: 1.1, color: c.primary, opacity: 0.25, rotate: -20 },
+            { type: "circle", x: 0.9, y: 0.85, size: 0.16, color: c.accent, opacity: 0.5 },
+          ],
+          typography: { headline: "serif", body: "light", headlineCase: "title", headlineScale: 1.05 },
+          layout: { align: "center", stack: "middle", photo: photo ? "full" : "none", price: "pill" },
+          decor: "auto",
+          backgroundPrompt: null,
+        },
+      ],
     };
   }
 

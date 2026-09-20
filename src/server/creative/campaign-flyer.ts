@@ -4,6 +4,10 @@ import { renderFlyerSvg, flyerSpecFromCampaign, type FlyerFormat } from "@/serve
 import { audit } from "@/server/audit";
 import { photoDataUri } from "@/server/creative/photo";
 import { ensureFonts } from "@/server/creative/fonts";
+import { renderDesign } from "@/server/creative/design-renderer";
+import { designSpecSchema } from "@/server/ai/schemas";
+import { isImageGenerationConfigured } from "@/server/ai";
+import { log } from "@/server/logger";
 
 // ── Automatic campaign creatives ──────────────────────────────────────────
 // A campaign isn't done until it has something to post. The moment a
@@ -64,11 +68,25 @@ export async function createCampaignFlyers(params: {
       : null;
 
   const templateId = campaign.templateId ?? brand?.flyerTemplate ?? null;
-  const heroPhoto =
+  const design = designSpecSchema.safeParse(campaign.designSpec);
+  let heroPhoto =
     campaign.heroAssetId &&
     (await db.asset.findFirst({ where: { id: campaign.heroAssetId, tenantId }, select: { id: true } }))
       ? await photoDataUri(campaign.heroAssetId)
       : null;
+
+  // The design asked for a painted scene and there's no photo: let the image
+  // model supply one. It draws only the background; words stay ours.
+  if (!heroPhoto && design.success && design.data.backgroundPrompt && isImageGenerationConfigured()) {
+    try {
+      const { generateProductPhoto } = await import("@/server/creative/generate-photo");
+      const assetId = await generateProductPhoto({ tenantId, userId: userId ?? "", subject: design.data.backgroundPrompt, style: "warm" });
+      heroPhoto = await photoDataUri(assetId);
+      await db.campaign.update({ where: { id: campaignId }, data: { heroAssetId: assetId } });
+    } catch (err) {
+      log.error({ operation: "campaign.ai_background", tenantId, status: "error", error: err instanceof Error ? err.message : String(err) });
+    }
+  }
 
   const storage = getStorageProvider();
   const byFormat = new Map<FlyerFormat, string>();
@@ -79,7 +97,22 @@ export async function createCampaignFlyers(params: {
 
     let assetId = byFormat.get(format);
     if (!assetId) {
-      const svg = renderFlyerSvg(spec, format, watermark, templateId, heroPhoto, profile?.category ?? null);
+      const svg = design.success
+        ? renderDesign(design.data, {
+            format,
+            headline: spec.headline,
+            price: spec.price,
+            when: spec.when,
+            businessName: spec.businessName,
+            category: profile?.category ?? null,
+            cta: spec.cta,
+            phone: spec.phone,
+            address: spec.address,
+            brand: spec.brand,
+            photo: heroPhoto,
+            watermark,
+          })
+        : renderFlyerSvg(spec, format, watermark, templateId, heroPhoto, profile?.category ?? null);
       const buf = Buffer.from(svg, "utf8");
       const key = storageKey(tenantId, `${campaign.name.slice(0, 40)}-${format}.svg`);
       await storage.put(key, buf, "image/svg+xml");
@@ -93,7 +126,7 @@ export async function createCampaignFlyers(params: {
           storageKey: key,
           width: 1080,
           height: format === "square" ? 1080 : format === "portrait" ? 1350 : 1920,
-          tags: ["flyer", "campaign", format, templateId ?? "bold"],
+          tags: ["flyer", "campaign", format, design.success ? `design:${design.data.name}` : (templateId ?? "bold")],
           watermarked: Boolean(watermark),
           createdById: userId ?? null,
         },

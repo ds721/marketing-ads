@@ -108,6 +108,11 @@ export default async function CampaignPage({
             currentPhotoId={campaign.heroAssetId}
             canGeneratePhotos={picker.canGeneratePhotos}
             subject={(campaign.facts as Record<string, string | null> | null)?.offerName ?? campaign.name}
+            brief={{
+              headline: facts.offerName ?? campaign.name,
+              price: facts.price ?? null,
+              when: facts.daysOrTimes ?? null,
+            }}
           />
         )}
       </div>

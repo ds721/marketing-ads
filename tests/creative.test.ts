@@ -156,3 +156,70 @@ describe("AI photo prompt", () => {
     expect(photoPrompt("cake", null, "moody")).not.toBe(photoPrompt("cake", null, "clean"));
   });
 });
+
+// ── AI design engine ──────────────────────────────────────────────────────
+
+import { renderDesign } from "@/server/creative/design-renderer";
+import { designSetSchema, designSpecSchema, PROMPT_VERSIONS } from "@/server/ai/schemas";
+import { MockAIProvider } from "@/server/ai/providers/mock";
+
+describe("AI-designed flyers", () => {
+  const base = {
+    headline: "We have 50 extra cakes today",
+    price: "₹199",
+    when: "Saturday & Sunday",
+    businessName: "Spice House",
+    category: "Bakery",
+    cta: "Order now",
+    phone: "+91 98410 55555",
+    address: "45 T Nagar High Road",
+    brand: { primary: "#E8492E", secondary: "#2E2447", accent: "#F5A31C" },
+  };
+
+  async function designs(hasPhoto: boolean) {
+    const r = await new MockAIProvider().generateStructured(
+      { task: "campaign", schemaName: PROMPT_VERSIONS.flyerDesign, system: "", prompt: `BUSINESS CONTEXT (JSON):\n${JSON.stringify({ brand: { colors: base.brand }, hasPhoto })}` },
+      designSetSchema,
+    );
+    return r.data.designs;
+  }
+
+  it("the model's design must validate before it is ever drawn", () => {
+    expect(designSpecSchema.safeParse({ name: "x" }).success).toBe(false);
+    // Markup in a colour field is rejected, not rendered.
+    expect(designSpecSchema.safeParse({ ...{}, palette: { background: "<script>" } }).success).toBe(false);
+  });
+
+  it("every design, every shape, with and without a photo, fits and carries the locked facts", async () => {
+    const photo = "data:image/jpeg;base64,/9j/4AAQ";
+    for (const hasPhoto of [true, false]) {
+      for (const spec of await designs(hasPhoto)) {
+        for (const format of ["square", "portrait", "story"] as const) {
+          const svg = renderDesign(spec, { ...base, format, photo: hasPhoto ? photo : null });
+          const desc = svg.match(/<desc>([^<]*)<\/desc>/)?.[1] ?? "";
+          expect(desc, `${spec.name}/${format}`).toContain("₹199");
+          expect(desc).toContain("+91 98410 55555");
+          expect(svg).not.toContain("NaN");
+          expect(svg).toContain("<path d=");
+        }
+      }
+    }
+  });
+
+  it("guarantees readable text even when the model picks a bad colour", () => {
+    const bad = {
+      name: "Low contrast", mood: "x",
+      palette: { background: "#FFFFFF", background2: "#FFFFFF", text: "#FAFAFA", accent: "#F5A31C", accent2: "#F5A31C" },
+      background: { kind: "solid" as const },
+      shapes: [],
+      typography: { headline: "display" as const, body: "body" as const, headlineCase: "title" as const, headlineScale: 1 },
+      layout: { align: "left" as const, stack: "middle" as const, photo: "none" as const, price: "big" as const },
+      decor: "none" as const,
+      backgroundPrompt: null,
+    };
+    const svg = renderDesign(bad, { ...base, format: "square", photo: null });
+    // Near-white text on white was swapped for near-black.
+    expect(svg).toContain('fill="#1B1430"');
+    expect(svg).not.toContain('fill="#FAFAFA"');
+  });
+});

@@ -10,6 +10,7 @@ export const PROMPT_VERSIONS = {
   contentGeneration: "content-gen.v1",
   analyticsInsight: "analytics-insight.v1",
   videoScript: "video-script.v1",
+  flyerDesign: "flyer-design.v1",
 } as const;
 
 export const PLATFORM_IDS = ["instagram", "facebook", "whatsapp", "google_business", "linkedin"] as const;
@@ -133,6 +134,67 @@ export const videoScriptSchema = z.object({
 });
 
 export type VideoScriptOutput = z.infer<typeof videoScriptSchema>;
+
+// ── AI flyer design (§18–19) ──────────────────────────────────────────────
+// The model is the art director: it decides colours, shapes, type, layout
+// and how the photo is treated. It never decides the words — our renderer
+// draws the price, dates and contact details from the locked facts.
+
+const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, "hex colour");
+const unit = z.number().min(0).max(1);
+
+export const designShapeSchema = z.object({
+  type: z.enum(["circle", "blob", "ring", "stripe", "wave", "arc"]),
+  x: unit,
+  y: unit,
+  size: z.number().min(0.05).max(1.2),
+  color: hex,
+  opacity: z.number().min(0.05).max(1),
+  rotate: z.number().min(-180).max(180).optional(),
+});
+
+export const designSpecSchema = z.object({
+  name: z.string().min(1).max(40),
+  mood: z.string().min(1).max(120),
+  palette: z.object({
+    background: hex,
+    background2: hex, // second stop when the background is a gradient
+    text: hex,
+    accent: hex,
+    accent2: hex,
+  }),
+  background: z.object({
+    kind: z.enum(["solid", "gradient", "photo"]),
+    angle: z.number().min(0).max(360).optional(),
+    /** Darkening over a photo so text reads: 0 none … 1 black. */
+    overlay: unit.optional(),
+  }),
+  shapes: z.array(designShapeSchema).max(6),
+  typography: z.object({
+    headline: z.enum(["display", "condensed", "serif", "script", "hand", "light"]),
+    body: z.enum(["body", "display", "light"]),
+    headlineCase: z.enum(["upper", "title"]),
+    /** 1 = normal; 0.7 quieter; 1.3 louder. */
+    headlineScale: z.number().min(0.6).max(1.4),
+  }),
+  layout: z.object({
+    align: z.enum(["left", "center"]),
+    /** Where the text stack sits vertically. */
+    stack: z.enum(["top", "middle", "bottom"]),
+    photo: z.enum(["full", "circle", "frame", "half-right", "half-top", "none"]),
+    price: z.enum(["big", "sticker", "pill", "tag"]),
+  }),
+  decor: z.enum(["auto", "none"]),
+  /** Optional: a scene for an AI background image. Must describe no text. */
+  backgroundPrompt: z.string().max(300).nullable(),
+});
+
+export const designSetSchema = z.object({
+  designs: z.array(designSpecSchema).min(1).max(4),
+});
+
+export type DesignSpec = z.infer<typeof designSpecSchema>;
+export type DesignSet = z.infer<typeof designSetSchema>;
 
 // ── Analytics insight (§25) ───────────────────────────────────────────────
 

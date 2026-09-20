@@ -10,10 +10,12 @@ import { approveCampaign, rejectCampaign } from "@/server/marketing/campaigns";
 import { generateMonthlyStrategy } from "@/server/marketing/strategy";
 import { writeContentItem } from "@/server/marketing/content";
 import { UsageLimitError } from "@/server/usage";
-import { AiNotConfiguredError, AiOutputInvalidError } from "@/server/ai/types";
+import { AiNotConfiguredError, AiOutputInvalidError, AiQuotaError } from "@/server/ai/types";
 import { audit } from "@/server/audit";
 import { log } from "@/server/logger";
 import { monthKey } from "@/lib/utils";
+import { designSpecSchema, type DesignSpec } from "@/server/ai/schemas";
+import type { Prisma } from "@prisma/client";
 import type { FormState } from "@/server/actions/auth";
 
 /** Never show a raw stack trace or provider error code to a business owner (§49). */
@@ -23,6 +25,11 @@ function friendly(err: unknown, operation: string, tenantId?: string): string {
   }
   if (err instanceof AiNotConfiguredError) {
     return "The AI isn't connected yet. Add an OpenAI API key in your environment settings to generate real marketing.";
+  }
+  if (err instanceof AiQuotaError) {
+    return err.reason === "no_credit"
+      ? "The AI account is out of credit. Whoever runs this platform needs to top up at platform.openai.com → Billing — nothing to fix on your side."
+      : "The AI is busy right now. Give it a minute and try again.";
   }
   if (err instanceof AiOutputInvalidError) {
     return "The AI returned something we couldn't use. Try again — if it keeps happening, rephrase your idea.";
@@ -51,13 +58,15 @@ export async function submitIdeaAction(
   const parsed = ideaSchema.safeParse({ text: formData.get("text") });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
 
-  // Creative choices from the picker. A photo id is only honoured if it's ours.
+  // Creative choices from the studio. A photo id is only honoured if it's ours;
+  // a design spec only if it validates — the client can't smuggle markup in.
   const templateId = String(formData.get("template") ?? "") || null;
   let heroAssetId = String(formData.get("heroAssetId") ?? "") || null;
   if (heroAssetId) {
     const asset = await db.asset.findFirst({ where: { id: heroAssetId, tenantId: ctx.tenant.id }, select: { id: true } });
     if (!asset) heroAssetId = null;
   }
+  const designSpec = parseDesignSpec(formData.get("designSpec"));
 
   let result;
   try {
@@ -67,6 +76,7 @@ export async function submitIdeaAction(
       text: parsed.data.text,
       templateId,
       heroAssetId,
+      designSpec,
     });
   } catch (err) {
     return { error: friendly(err, "idea.submit", ctx.tenant.id) };
@@ -371,6 +381,43 @@ export async function publishNowAction(slug: string, contentId: string): Promise
 }
 
 
+function parseDesignSpec(raw: FormDataEntryValue | null): DesignSpec | null {
+  if (!raw) return null;
+  try {
+    const parsed = designSpecSchema.safeParse(JSON.parse(String(raw)));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+// ── AI design directions (§18) ────────────────────────────────────────────
+
+export type DesignOptionDto = { spec: DesignSpec; preview: string };
+
+export async function designIdeasAction(
+  slug: string,
+  input: { headline: string; price?: string | null; when?: string | null; heroAssetId?: string | null },
+): Promise<{ designs?: DesignOptionDto[]; error?: string }> {
+  const ctx = await requireTenant(slug, "EDITOR");
+  const headline = input.headline.trim().slice(0, 160);
+  if (headline.length < 2) return { error: "Type what you're promoting first." };
+  try {
+    const { generateDesigns } = await import("@/server/marketing/designs");
+    const designs = await generateDesigns({
+      tenantId: ctx.tenant.id,
+      userId: ctx.userId,
+      headline,
+      price: input.price ?? null,
+      when: input.when ?? null,
+      heroAssetId: input.heroAssetId ?? null,
+    });
+    return { designs };
+  } catch (err) {
+    return { error: friendly(err, "design.generate", ctx.tenant.id) };
+  }
+}
+
 // ── Change the look of an existing campaign ───────────────────────────────
 
 export async function changeLookAction(
@@ -389,8 +436,12 @@ export async function changeLookAction(
     const asset = await db.asset.findFirst({ where: { id: heroAssetId, tenantId: ctx.tenant.id }, select: { id: true } });
     if (!asset) heroAssetId = null;
   }
+  const designSpec = parseDesignSpec(formData.get("designSpec"));
 
-  await db.campaign.update({ where: { id: campaign.id }, data: { templateId, heroAssetId } });
+  await db.campaign.update({
+    where: { id: campaign.id },
+    data: { templateId, heroAssetId, designSpec: (designSpec ?? undefined) as Prisma.InputJsonValue | undefined },
+  });
   // Detach the old flyers (published posts keep theirs) and redraw.
   await db.contentItem.updateMany({
     where: { tenantId: ctx.tenant.id, campaignId: campaign.id, platform: "instagram", status: { not: "PUBLISHED" } },
