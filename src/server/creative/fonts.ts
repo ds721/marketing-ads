@@ -1,4 +1,5 @@
-import opentype, { type Font } from "opentype.js";
+import * as opentype from "opentype.js";
+import type { Font } from "opentype.js";
 
 // ── Text as outlines ──────────────────────────────────────────────────────
 // Flyer text is converted to vector paths with the bundled fonts, so the
@@ -36,7 +37,15 @@ async function loadOne(id: FontId): Promise<Font> {
   } else {
     buf = await (await fetch(`/fonts/${file}`)).arrayBuffer();
   }
-  return opentype.parse(buf);
+  return parseFont(buf);
+}
+
+/** Works whether the bundler gives us the ESM namespace or a CJS default wrapper. */
+function parseFont(buf: ArrayBuffer): Font {
+  const mod = opentype as unknown as { parse?: (b: ArrayBuffer) => Font; default?: { parse: (b: ArrayBuffer) => Font } };
+  const parse = mod.parse ?? mod.default?.parse;
+  if (!parse) throw new Error("opentype.js failed to load");
+  return parse(buf);
 }
 
 /** Loads every font once. Safe to call repeatedly. */

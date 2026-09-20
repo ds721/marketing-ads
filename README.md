@@ -110,7 +110,7 @@ npm test
 npm run build
 ```
 
-99 tests cover tenant isolation, role permissions, AI schema validation and the
+112 tests cover tenant isolation, role permissions, AI schema validation and the
 anti-invention guardrails, token encryption, upload sniffing, plan limits, form
 input handling, video planning, brand watermarking, route-collision safety,
 OAuth state forgery, admin revenue rules, and the full "one sentence →
@@ -182,6 +182,22 @@ Personal-account refusal and asset-link tampering.
 Later. They're listed on the Integrations page as *Coming later* so owners
 aren't misled. Markit still writes and plans content for them; the owner
 posts it manually until an adapter exists.
+
+## Flyers
+
+Six looks — Photo, Split, Framed, Playful, Bold, Minimal — each a pure
+function of the same input, so a campaign can be redrawn in any look. The
+owner picks the look and a photo before generating, with a live preview.
+
+Text is drawn as vector outlines from seven bundled OFL fonts
+(`public/fonts`), so flyers are identical on every machine and no server
+font setup is needed. Widths are measured, not estimated. Decorative motifs
+follow the business category. Prices, dates and contact details are placed
+by this code — never by an image model (§19).
+
+With an OpenAI key, "Make a photo" generates a product image from a
+description; the model only draws the scene, text is still laid on
+afterwards.
 
 ## Video
 

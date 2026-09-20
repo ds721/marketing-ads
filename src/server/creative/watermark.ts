@@ -1,4 +1,5 @@
 import type { WatermarkPosition } from "@prisma/client";
+import { textPath, measure } from "@/server/creative/fonts";
 
 // ── Image watermarking ────────────────────────────────────────────────────
 // Same rule as the flyer text (§19): the brand mark is composited by us, at a
@@ -66,7 +67,11 @@ export function watermarkFragment(
   const p = place(options.position, w, h, margin);
   // Baseline sits inside the canvas for top-anchored placements.
   const y = options.position.startsWith("TOP") ? p.y + fontSize : p.y;
-  return `<text x="${p.x}" y="${y}" text-anchor="${p.anchor}" font-family="Helvetica,Arial,sans-serif" font-size="${fontSize}" font-weight="700" fill="#FFFFFF" opacity="${alpha}" style="paint-order:stroke" stroke="#000000" stroke-opacity="${alpha * 0.35}" stroke-width="${Math.round(fontSize * 0.14)}">${esc(options.text)}</text>`;
+  // Soft dark plate behind the mark so it reads on any photo.
+  const tw = measure("display", options.text, fontSize);
+  const px = p.anchor === "end" ? p.x - tw : p.anchor === "middle" ? p.x - tw / 2 : p.x;
+  const plate = `<rect x="${px - fontSize * 0.5}" y="${y - fontSize * 1.05}" width="${tw + fontSize}" height="${fontSize * 1.5}" rx="${fontSize * 0.5}" fill="#000" opacity="${alpha * 0.28}"/>`;
+  return plate + textPath({ font: "display", text: options.text, x: p.x, y, size: fontSize, fill: "#FFFFFF", anchor: p.anchor, opacity: alpha });
 }
 
 /** Wraps an existing image in an SVG that carries the brand mark. */
