@@ -106,6 +106,8 @@ export default async function CampaignPage({
             photos={picker.photos}
             currentLook={campaign.templateId ?? picker.defaultLook}
             currentPhotoId={campaign.heroAssetId}
+            canGeneratePhotos={picker.canGeneratePhotos}
+            subject={(campaign.facts as Record<string, string | null> | null)?.offerName ?? campaign.name}
           />
         )}
       </div>

@@ -255,3 +255,34 @@ export async function tagAssetAction(
   revalidatePath(`/app/${slug}/assets`);
   return { ok: true, message: "Tags saved." };
 }
+
+// ── AI product photo ──────────────────────────────────────────────────────
+
+export async function generatePhotoAction(
+  slug: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState & { assetId?: string }> {
+  const ctx = await requireTenant(slug, "EDITOR");
+  const subject = String(formData.get("subject") ?? "").trim().slice(0, 120);
+  if (subject.length < 2) return { error: "Say what the photo should show — e.g. “filter coffee in a steel tumbler”." };
+  const styleRaw = String(formData.get("style") ?? "warm");
+  const style = (["warm", "clean", "moody"] as const).find((s) => s === styleRaw) ?? "warm";
+
+  try {
+    const { generateProductPhoto, PhotoGenerationUnavailable } = await import("@/server/creative/generate-photo");
+    try {
+      const assetId = await generateProductPhoto({ tenantId: ctx.tenant.id, userId: ctx.userId, subject, style });
+      revalidatePath(`/app/${slug}/ideas/new`);
+      revalidatePath(`/app/${slug}/assets`);
+      return { ok: true, message: "Photo ready.", assetId };
+    } catch (err) {
+      if (err instanceof PhotoGenerationUnavailable) return { error: err.message };
+      throw err;
+    }
+  } catch (err) {
+    if (err instanceof UsageLimitError) return { error: "You've used all your AI photos for this month. Upgrade for more." };
+    log.error({ operation: "asset.ai_photo", tenantId: ctx.tenant.id, status: "error", error: err instanceof Error ? err.message : String(err) });
+    return { error: "We couldn't make that photo just now. Try again, or pick one from your library." };
+  }
+}

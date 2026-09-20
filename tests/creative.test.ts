@@ -139,3 +139,20 @@ describe("flyer templates", () => {
     expect(svg).not.toContain("<script>");
   });
 });
+
+// ── AI photo prompts ──────────────────────────────────────────────────────
+
+import { photoPrompt } from "@/server/creative/generate-photo";
+
+describe("AI photo prompt", () => {
+  it("names the subject and the business type, and forbids text in the image", () => {
+    const p = photoPrompt("filter coffee in a steel tumbler", "Restaurant", "warm");
+    expect(p).toContain("filter coffee in a steel tumbler");
+    expect(p).toContain("restaurant");
+    expect(p).toMatch(/no text, letters, numbers/i);
+  });
+
+  it("changes with the style", () => {
+    expect(photoPrompt("cake", null, "moody")).not.toBe(photoPrompt("cake", null, "clean"));
+  });
+});

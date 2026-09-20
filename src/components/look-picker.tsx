@@ -16,6 +16,7 @@ export function LookPicker({
   defaultPhotoId = null,
   compact = false,
   onChange,
+  generator,
 }: {
   looks: LookPreview[];
   photos: PhotoChoice[];
@@ -23,9 +24,13 @@ export function LookPicker({
   defaultPhotoId?: string | null;
   compact?: boolean;
   onChange?: (look: string, photoId: string | null) => void;
+  /** Optional "make a photo" control, rendered inside the photo row. */
+  generator?: (onGenerated: (assetId: string) => void) => React.ReactNode;
 }) {
   const [look, setLookState] = useState(defaultLook);
   const [photoId, setPhotoIdState] = useState<string | null>(defaultPhotoId);
+  const [extra, setExtra] = useState<PhotoChoice[]>([]);
+  const allPhotos = [...extra, ...photos];
   const setLook = (l: string) => { setLookState(l); onChange?.(l, photoId); };
   const setPhotoId = (p: string | null) => { setPhotoIdState(p); onChange?.(look, p); };
   const chosen = looks.find((l) => l.id === look);
@@ -66,13 +71,17 @@ export function LookPicker({
             {chosen?.wantsPhoto ? "— this look works best with one" : "— optional"}
           </span>
         </div>
-        {photos.length === 0 ? (
+        {allPhotos.length === 0 && !generator ? (
           <p className="text-[12.5px] text-ink-soft">
             No photos in your library yet. Upload one under Assets — a shot of the dish, the
             product, your shopfront — and it&apos;ll appear here.
           </p>
         ) : (
           <div className="flex gap-2 flex-wrap">
+            {generator?.((assetId) => {
+              setExtra((e) => [{ id: assetId, filename: "AI photo" }, ...e]);
+              setPhotoId(assetId);
+            })}
             <button
               type="button"
               onClick={() => setPhotoId(null)}
@@ -84,7 +93,7 @@ export function LookPicker({
             >
               None
             </button>
-            {photos.map((p) => (
+            {allPhotos.map((p) => (
               <button
                 key={p.id}
                 type="button"

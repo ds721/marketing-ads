@@ -2,6 +2,7 @@ import { db } from "@/server/db";
 import { TEMPLATES, DEFAULT_TEMPLATE_ID } from "@/server/creative/templates";
 import { photoDataUri } from "@/server/creative/photo";
 import { ensureFonts } from "@/server/creative/fonts";
+import { isImageGenerationConfigured } from "@/server/ai";
 
 // ── Look previews for the picker ──────────────────────────────────────────
 // Each template rendered small, in the tenant's real brand colours, with a
@@ -37,6 +38,7 @@ export async function lookPreviews(tenantId: string, heroAssetId?: string | null
   photos: PhotoChoice[];
   defaultLook: string;
   context: PreviewContext;
+  canGeneratePhotos: boolean;
 }> {
   await ensureFonts();
   const [tenant, brand, profile, photos] = await Promise.all([
@@ -93,6 +95,7 @@ export async function lookPreviews(tenantId: string, heroAssetId?: string | null
     looks,
     photos,
     defaultLook: brand?.flyerTemplate ?? DEFAULT_TEMPLATE_ID,
+    canGeneratePhotos: isImageGenerationConfigured(),
     context: {
       businessName: tenant.name,
       category: profile?.category ?? null,

@@ -6,6 +6,7 @@ import type { FormState } from "@/server/actions/auth";
 import { LookPicker } from "@/components/look-picker";
 import { FormError, FormSuccess, btnStyles } from "@/components/ui";
 import type { LookPreview, PhotoChoice } from "@/server/creative/looks";
+import { PhotoGenerator } from "@/components/photo-generator";
 
 const initial: FormState = {};
 
@@ -17,6 +18,8 @@ export function ChangeLook({
   photos,
   currentLook,
   currentPhotoId,
+  canGeneratePhotos,
+  subject,
 }: {
   slug: string;
   campaignId: string;
@@ -24,6 +27,8 @@ export function ChangeLook({
   photos: PhotoChoice[];
   currentLook: string;
   currentPhotoId: string | null;
+  canGeneratePhotos: boolean;
+  subject: string;
 }) {
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState(changeLookAction.bind(null, slug, campaignId), initial);
@@ -40,7 +45,14 @@ export function ChangeLook({
     <form action={action} className="bg-surface border border-line rounded-[16px] p-4 flex flex-col gap-4 w-full">
       <FormError error={state.error} />
       <FormSuccess message={state.message} />
-      <LookPicker looks={looks} photos={photos} defaultLook={currentLook} defaultPhotoId={currentPhotoId} compact />
+      <LookPicker
+        looks={looks}
+        photos={photos}
+        defaultLook={currentLook}
+        defaultPhotoId={currentPhotoId}
+        compact
+        generator={canGeneratePhotos ? (onGenerated) => <PhotoGenerator slug={slug} suggestion={subject} onGenerated={onGenerated} /> : undefined}
+      />
       <div className="flex gap-2">
         <button type="submit" disabled={pending} className={btnStyles.primary}>
           {pending ? "Redrawing…" : "Redraw flyers"}

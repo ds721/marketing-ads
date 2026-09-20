@@ -10,6 +10,7 @@ import { cleanText } from "@/server/creative/svg";
 import { ensureFonts, fontsReady } from "@/server/creative/fonts";
 import type { LookPreview, PhotoChoice, PreviewContext } from "@/server/creative/looks";
 import { cn } from "@/lib/utils";
+import { PhotoGenerator } from "@/components/photo-generator";
 
 const initial: FormState = {};
 
@@ -46,12 +47,14 @@ export function IdeaStudio({
   photos,
   defaultLook,
   context,
+  canGeneratePhotos,
 }: {
   slug: string;
   looks: LookPreview[];
   photos: PhotoChoice[];
   defaultLook: string;
   context: PreviewContext;
+  canGeneratePhotos: boolean;
 }) {
   const [state, action, pending] = useActionState(submitIdeaAction.bind(null, slug), initial);
   const [text, setText] = useState("");
@@ -107,7 +110,20 @@ export function IdeaStudio({
             defaultLook={defaultLook}
             defaultPhotoId={photoId}
             onChange={(l, p) => { setLook(l); setPhotoId(p); }}
+            generator={
+              canGeneratePhotos
+                ? (onGenerated) => (
+                    <PhotoGenerator slug={slug} suggestion={sketch(text).headline} onGenerated={onGenerated} />
+                  )
+                : undefined
+            }
           />
+          {!canGeneratePhotos && (
+            <p className="text-[11.5px] text-ink-faint mt-3">
+              Want Markit to make a photo when you don&apos;t have one? That switches on when the
+              platform has an OpenAI key (<code className="font-mono">AI_PROVIDER=openai</code>).
+            </p>
+          )}
         </div>
 
         <div className="flex items-center justify-between gap-3 flex-wrap">
