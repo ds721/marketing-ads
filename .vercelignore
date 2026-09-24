@@ -1,0 +1,7 @@
+# Build caches and local-only data — the build runs on Vercel, not here.
+node_modules
+.next
+.next-build
+storage
+coverage
+*.tsbuildinfo
