@@ -8,8 +8,11 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider = "postgresql"
+  // Serverless needs a pooled connection; migrations need a direct one.
+  // Locally both point at the same database.
   url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─────────────────────────── auth & users ───────────────────────────

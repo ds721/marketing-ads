@@ -52,8 +52,11 @@ export async function generateProductPhoto(params: {
   const result = await getAIProvider().generateImage({ prompt, size: "square" });
   await recordUsage(tenantId, "ai_image");
 
-  const key = storageKey(tenantId, `ai-${subject.slice(0, 30)}.png`);
-  await getStorageProvider().put(key, result.data, "image/png");
+  const key = await getStorageProvider().put(
+    storageKey(tenantId, `ai-${subject.slice(0, 30)}.png`),
+    result.data,
+    "image/png",
+  );
 
   const asset = await db.asset.create({
     data: {

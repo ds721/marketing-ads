@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/jobs/tick",
+      "schedule": "*/10 * * * *"
+    }
+  ],
+  "functions": {
+    "src/app/api/jobs/tick/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/social/instagram/callback/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}

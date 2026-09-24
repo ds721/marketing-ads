@@ -30,8 +30,11 @@ export async function ensureJpegAsset(assetId: string): Promise<string> {
   const jpeg = await image.jpeg({ quality: 90, mozjpeg: true }).toBuffer();
   const meta = await sharp(jpeg).metadata();
 
-  const key = storageKey(source.tenantId, source.filename.replace(/\.[a-z0-9]+$/i, "") + ".jpg");
-  await storage.put(key, jpeg, "image/jpeg");
+  const key = await storage.put(
+    storageKey(source.tenantId, source.filename.replace(/\.[a-z0-9]+$/i, "") + ".jpg"),
+    jpeg,
+    "image/jpeg",
+  );
 
   const derived = await db.asset.create({
     data: {

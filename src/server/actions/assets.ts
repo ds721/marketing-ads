@@ -53,8 +53,7 @@ export async function uploadAssetAction(
   }
 
   const storage = getStorageProvider();
-  const key = storageKey(ctx.tenant.id, file.name);
-  await storage.put(key, buf, mime);
+  const key = await storage.put(storageKey(ctx.tenant.id, file.name), buf, mime);
 
   const isVideo = mime.startsWith("video");
   let durationSec: number | null = null;
@@ -72,8 +71,7 @@ export async function uploadAssetAction(
       height = meta.height || null;
 
       const poster = await extractPoster(buf);
-      posterKey = `${key}.poster.jpg`;
-      await storage.put(posterKey, poster, "image/jpeg");
+      posterKey = await storage.put(`${storageKey(ctx.tenant.id, file.name)}.poster.jpg`, poster, "image/jpeg");
     } catch (err) {
       posterKey = null;
       log.error({
@@ -200,8 +198,7 @@ export async function watermarkVideoAction(slug: string, assetId: string): Promi
     return { error: "We couldn't add your brand mark to this video. The original is untouched." };
   }
 
-  const key = storageKey(ctx.tenant.id, `branded-${asset.filename}`);
-  await storage.put(key, output, asset.mimeType);
+  const key = await storage.put(storageKey(ctx.tenant.id, `branded-${asset.filename}`), output, asset.mimeType);
 
   const branded = await db.asset.create({
     data: {

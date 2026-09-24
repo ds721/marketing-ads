@@ -114,8 +114,11 @@ export async function createCampaignFlyers(params: {
           })
         : renderFlyerSvg(spec, format, watermark, templateId, heroPhoto, profile?.category ?? null);
       const buf = Buffer.from(svg, "utf8");
-      const key = storageKey(tenantId, `${campaign.name.slice(0, 40)}-${format}.svg`);
-      await storage.put(key, buf, "image/svg+xml");
+      const key = await storage.put(
+        storageKey(tenantId, `${campaign.name.slice(0, 40)}-${format}.svg`),
+        buf,
+        "image/svg+xml",
+      );
       const asset = await db.asset.create({
         data: {
           tenantId,
