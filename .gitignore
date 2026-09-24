@@ -19,3 +19,5 @@ storage/
 .DS_Store
 *.tsbuildinfo
 coverage/
+.vercel
+.env*
