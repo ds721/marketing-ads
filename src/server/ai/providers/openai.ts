@@ -156,13 +156,89 @@ export class OpenAIProvider implements AIProvider {
 
   async generateImage(input: ImageGenerationInput): Promise<ImageGenerationResult> {
     const size = input.size === "square" ? "1024x1024" : "1024x1536";
+    const quality = input.quality ?? "high";
+
+    // With reference images we use the edits endpoint, so the model composes
+    // the owner's actual product rather than inventing a lookalike.
+    if (input.references?.length) {
+      const form = new FormData();
+      form.set("model", IMAGE_MODEL);
+      form.set("prompt", input.prompt);
+      form.set("size", size);
+      form.set("quality", quality);
+      form.set("n", "1");
+      input.references.forEach((buf, i) => {
+        form.append("image[]", new Blob([new Uint8Array(buf)], { type: "image/png" }), `ref${i}.png`);
+      });
+      const json = await this.requestForm<{ data?: Array<{ b64_json?: string }> }>(
+        "/images/edits",
+        form,
+        "ai.image.edit",
+      );
+      const b64 = json.data?.[0]?.b64_json;
+      if (!b64) throw new Error("Image provider returned no image data.");
+      return { data: Buffer.from(b64, "base64"), model: IMAGE_MODEL, provider: this.name };
+    }
+
     const json = await this.request<{ data?: Array<{ b64_json?: string }> }>(
       "/images/generations",
-      { model: IMAGE_MODEL, prompt: input.prompt, size, n: 1 },
+      { model: IMAGE_MODEL, prompt: input.prompt, size, quality, n: 1 },
       "ai.image",
     );
     const b64 = json.data?.[0]?.b64_json;
     if (!b64) throw new Error("Image provider returned no image data.");
     return { data: Buffer.from(b64, "base64"), model: IMAGE_MODEL, provider: this.name };
+  }
+
+  /** Multipart variant of request(), for the image edits endpoint. */
+  private async requestForm<T>(path: string, form: FormData, operation: string): Promise<T> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 180_000);
+    const started = Date.now();
+    try {
+      const res = await fetch(`${API}${path}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${this.apiKey()}` },
+        body: form,
+        signal: controller.signal,
+      });
+      const json = (await res.json()) as T & { error?: { code?: string; type?: string; message?: string } };
+      if (!res.ok || json.error) {
+        const code = json.error?.code ?? json.error?.type ?? "";
+        if (/insufficient_quota|credit_balance_exhausted|billing/.test(code)) {
+          throw new AiQuotaError("OpenAI", "no_credit");
+        }
+        log.error({ operation, provider: this.name, status: "error", error: code || `HTTP ${res.status}`, durationMs: Date.now() - started });
+        throw new Error(json.error?.message?.slice(0, 200) ?? "Image request failed.");
+      }
+      log.info({ operation, provider: this.name, status: "ok", durationMs: Date.now() - started });
+      return json;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async readImage(input: { image: Buffer; question: string }): Promise<string> {
+    const json = await this.request<ChatResponse>(
+      "/chat/completions",
+      {
+        model: "gpt-4o-mini",
+        max_tokens: 300,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: input.question },
+              {
+                type: "image_url",
+                image_url: { url: `data:image/png;base64,${input.image.toString("base64")}` },
+              },
+            ],
+          },
+        ],
+      },
+      "ai.image.read",
+    );
+    return json.choices?.[0]?.message?.content ?? "";
   }
 }

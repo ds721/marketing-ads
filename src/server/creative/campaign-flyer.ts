@@ -7,6 +7,7 @@ import { ensureFonts } from "@/server/creative/fonts";
 import { renderDesign } from "@/server/creative/design-renderer";
 import { designSpecSchema } from "@/server/ai/schemas";
 import { isImageGenerationConfigured } from "@/server/ai";
+import { generateAiFlyer, type FlyerStyle } from "@/server/creative/ai-flyer";
 import { log } from "@/server/logger";
 
 // ── Automatic campaign creatives ──────────────────────────────────────────
@@ -18,6 +19,17 @@ import { log } from "@/server/logger";
 const FORMAT_FOR_TYPE: Record<string, FlyerFormat> = {
   STORY: "story",
   REEL: "story",
+};
+
+// The owner picks a look; the image model needs an art direction. This is the
+// bridge between the two vocabularies.
+const STYLE_FOR_LOOK: Record<string, FlyerStyle> = {
+  bold: "bold",
+  photo: "premium",
+  split: "fresh",
+  framed: "premium",
+  blob: "festive",
+  minimal: "minimal",
 };
 
 export async function createCampaignFlyers(params: {
@@ -96,6 +108,44 @@ export async function createCampaignFlyers(params: {
     const format = FORMAT_FOR_TYPE[item.contentType] ?? "square";
 
     let assetId = byFormat.get(format);
+
+    // Preferred path: the image model paints the whole creative from the
+    // owner's photo — lighting, depth, foil type — then we read the result
+    // back and confirm the price and phone survived intact. Anything short of
+    // that falls through to the deterministic renderer below, which cannot
+    // get a number wrong because it draws them itself.
+    if (!assetId && isImageGenerationConfigured() && format !== "portrait") {
+      try {
+        const painted = await generateAiFlyer({
+          tenantId,
+          userId: userId ?? "",
+          referenceAssetId: campaign.heroAssetId,
+          brief: {
+            headline: spec.headline,
+            subline: spec.subhead,
+            price: spec.price,
+            when: spec.when,
+            cta: spec.cta,
+            businessName: spec.businessName,
+            phone: spec.phone,
+            category: profile?.category ?? null,
+            style: STYLE_FOR_LOOK[templateId ?? ""] ?? "premium",
+            format: format === "story" ? "story" : "square",
+            brand: spec.brand,
+          },
+        });
+        assetId = painted.assetId;
+        byFormat.set(format, assetId);
+      } catch (err) {
+        log.info({
+          operation: "campaign.ai_flyer_fallback",
+          tenantId,
+          status: "ok",
+          reason: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
     if (!assetId) {
       const svg = design.success
         ? renderDesign(design.data, {

@@ -482,3 +482,70 @@ export async function createReelFromVideoAction(slug: string, assetId: string): 
   await audit({ tenantId: ctx.tenant.id, userId: ctx.userId, action: "content.reel_from_video", targetType: "content", targetId: item.id });
   redirect(`/app/${slug}/content/${item.id}`);
 }
+
+// ── Removing things ───────────────────────────────────────────────────────
+// An owner who can add a post must be able to take it away again. One honest
+// caveat runs through all of this: Instagram's publishing API can create
+// media but cannot delete it, so removing a published post here removes it
+// from Markit only. We say so plainly rather than implying we reached into
+// their feed.
+
+export async function deleteContentAction(slug: string, contentId: string): Promise<void> {
+  const ctx = await requireTenant(slug, "EDITOR");
+  const item = await db.contentItem.findUnique({
+    where: { id: contentId },
+    select: { id: true, tenantId: true, title: true, status: true, campaignId: true },
+  });
+  assertTenantOwns(ctx, item);
+
+  // SocialPost rows cascade from the content item; the flyer asset is left
+  // alone because the owner may have reused it elsewhere.
+  await db.contentItem.delete({ where: { id: item.id } });
+  await audit({
+    tenantId: ctx.tenant.id,
+    userId: ctx.userId,
+    action: "content.delete",
+    targetType: "content_item",
+    targetId: item.id,
+    meta: { title: item.title, status: item.status },
+  });
+
+  for (const path of ["calendar", "campaigns", "dashboard"]) {
+    revalidatePath(`/app/${slug}/${path}`);
+  }
+  if (item.campaignId) revalidatePath(`/app/${slug}/campaigns/${item.campaignId}`);
+  redirect(`/app/${slug}/calendar`);
+}
+
+export async function deleteCampaignAction(slug: string, campaignId: string): Promise<void> {
+  const ctx = await requireTenant(slug, "EDITOR");
+  const campaign = await db.campaign.findUnique({
+    where: { id: campaignId },
+    select: { id: true, tenantId: true, name: true },
+  });
+  assertTenantOwns(ctx, campaign);
+
+  // ContentItem.campaignId is SetNull, which would leave orphaned posts on the
+  // calendar with no way back to their campaign. Remove them with it.
+  const removed = await db.$transaction(async (tx) => {
+    const { count } = await tx.contentItem.deleteMany({
+      where: { tenantId: ctx.tenant.id, campaignId: campaign.id },
+    });
+    await tx.campaign.delete({ where: { id: campaign.id } });
+    return count;
+  });
+
+  await audit({
+    tenantId: ctx.tenant.id,
+    userId: ctx.userId,
+    action: "campaign.delete",
+    targetType: "campaign",
+    targetId: campaign.id,
+    meta: { name: campaign.name, contentItemsRemoved: removed },
+  });
+
+  for (const path of ["calendar", "campaigns", "dashboard"]) {
+    revalidatePath(`/app/${slug}/${path}`);
+  }
+  redirect(`/app/${slug}/campaigns`);
+}

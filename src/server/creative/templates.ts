@@ -1,5 +1,16 @@
 import {
-  esc, cleanText, fitHeadline, textBlock, label, pill, shade, isLight, coverImage, blobPath,
+  esc,
+  fitSize,
+  fitLabel,
+  cleanText,
+  fitHeadline,
+  textBlock,
+  label,
+  pill,
+  shade,
+  isLight,
+  coverImage,
+  blobPath,
 } from "@/server/creative/svg";
 import { measure } from "@/server/creative/fonts";
 import { watermarkFragment, type ImageWatermarkOptions } from "@/server/creative/watermark";
@@ -108,12 +119,32 @@ const bold: Template = {
     const contactY = h - pad * 0.6;
     y = Math.min(y, contactY - Math.round(w * 0.11));
     let x = pad;
+    const ctaSize = Math.round(w * 0.036);
+    const ctaW = input.cta ? measure("display", input.cta, ctaSize) : 0;
+    const gap = Math.round(w * 0.035);
     if (input.when) {
-      const p = pill({ x, y, text: input.when, size: Math.round(w * 0.03), fill: "#fff", color: secondary });
+      // Leave room for the CTA beside it; if that squeezes the pill too hard,
+      // the pill keeps the full row and the CTA moves below.
+      const beside = textW - ctaW - gap;
+      const roomy = beside > textW * 0.45;
+      const p = pill({
+        x,
+        y,
+        text: input.when,
+        size: Math.round(w * 0.03),
+        fill: "#fff",
+        color: secondary,
+        maxWidth: roomy ? beside : textW,
+      });
       svg += p.svg;
-      x += p.width + Math.round(w * 0.035);
+      if (roomy && p.width + gap + ctaW <= textW) {
+        x += p.width + gap;
+      } else {
+        x = pad;
+        y += p.height + Math.round(w * 0.02);
+      }
     }
-    if (input.cta) svg += label({ text: input.cta, x, y: y + Math.round(w * 0.03 * 1.28), size: Math.round(w * 0.036), font: "display", fill: "#fff" });
+    if (input.cta) svg += label({ text: input.cta, x, y: y + Math.round(w * 0.03 * 1.28), size: ctaSize, font: "display", fill: "#fff" });
     svg += contact(input, pad, contactY, Math.round(w * 0.024), "#fff", "start", w * 0.7);
     return svg + close(input, w, h);
   },
@@ -145,7 +176,10 @@ const photo: Template = {
     if (input.phone || input.address) { svg += contact(input, pad, y, Math.round(w * 0.024), "#fff", "start", w * 0.7); y -= Math.round(h * 0.045); }
     if (input.cta) { const p = pill({ x: pad, y: y - Math.round(w * 0.075), text: input.cta, size: Math.round(w * 0.034), fill: accent, color: isLight(accent) ? secondary : "#fff" }); svg += p.svg; y -= p.height + Math.round(w * 0.035); }
     if (input.price) { svg += label({ text: input.price, x: pad, y, size: Math.round(w * 0.14), font: "display", fill: accent }); y -= Math.round(w * 0.15); }
-    if (input.when) { svg += label({ text: input.when.toUpperCase(), x: pad, y, size: Math.round(w * 0.03), font: "body", fill: "#fff", letterSpacing: w * 0.005, opacity: 0.9 }); y -= Math.round(w * 0.055); }
+    if (input.when) { {
+        const fit = fitLabel("body", input.when.toUpperCase(), Math.round(w * 0.03), textW, 0.55, w * 0.005);
+        svg += label({ text: input.when.toUpperCase(), x: pad, y, size: fit.size, font: "body", fill: "#fff", letterSpacing: fit.letterSpacing, opacity: 0.9 });
+      } y -= Math.round(w * 0.055); }
     const head = fitHeadline(cleanText(input.headline), "display", textW, 3, Math.round(w * 0.09), Math.round(w * 0.06));
     svg += textBlock({ lines: head.lines, x: pad, y: y - (head.lines.length - 1) * head.size * 1.06, size: head.size, font: "display", fill: "#fff", lineHeight: 1.06 }).svg;
     return svg + close(input, w, h);
@@ -187,7 +221,7 @@ const split: Template = {
     svg += block.svg;
     y = block.endY + Math.round(h * 0.05);
     if (input.price) { svg += label({ text: input.price, x: pad, y: y + Math.round(w * 0.11), size: Math.round(w * 0.13), font: "display", fill: accent }); y += Math.round(w * 0.15); }
-    if (input.when) { svg += label({ text: input.when, x: pad, y, size: Math.round(w * 0.03), font: "body", fill: textFill }); y += Math.round(w * 0.06); }
+    if (input.when) { svg += label({ text: input.when, x: pad, y, size: fitSize("body", input.when, Math.round(w * 0.03), textW, 0.55), font: "body", fill: textFill }); y += Math.round(w * 0.06); }
     if (input.cta) svg += pill({ x: pad, y: Math.min(y, py + panelH - pad - Math.round(w * 0.14)), text: input.cta, size: Math.round(w * 0.03), fill: textFill, color: primary }).svg;
     svg += contact(input, pad, py + panelH - pad * 0.7, Math.round(w * 0.022), textFill);
     return svg + close(input, w, h);
@@ -229,7 +263,10 @@ const framed: Template = {
 
     let y = fy + frameH + Math.round(w * 0.14);
     if (input.price) { svg += label({ text: input.price, x: w / 2, y, size: Math.round(w * 0.11), font: "display", fill: accent, anchor: "middle", letterSpacing: w * 0.004 }); y += Math.round(w * 0.06); }
-    if (input.when) svg += label({ text: input.when.toUpperCase(), x: w / 2, y, size: Math.round(w * 0.028), font: "body", fill: "#fff", anchor: "middle", letterSpacing: w * 0.012, opacity: 0.85 });
+    if (input.when) {
+      const fit = fitLabel("body", input.when.toUpperCase(), Math.round(w * 0.028), w - pad * 2, 0.5, w * 0.012);
+      svg += label({ text: input.when.toUpperCase(), x: w / 2, y, size: fit.size, font: "body", fill: "#fff", anchor: "middle", letterSpacing: fit.letterSpacing, opacity: 0.85 });
+    }
     if (input.cta) svg += pill({ x: w / 2, y: ctaTop, text: input.cta, size: Math.round(w * 0.03), fill: accent, color: isLight(accent) ? bg : "#fff", anchor: "middle" }).svg;
     svg += contact(input, w / 2, h - pad * 0.55, Math.round(w * 0.022), "#fff", "middle");
     return svg + close(input, w, h);
@@ -273,10 +310,10 @@ const blob: Template = {
       const sh = Math.round(w * 0.13);
       const sticker = pill({ x: pad, y, text: input.price, size: Math.round(w * 0.075), fill: primary, color: "#fff" });
       svg += `<g transform="rotate(-5 ${pad + sticker.width / 2} ${y + sh / 2})">${sticker.svg}</g>`;
-      if (input.when) svg += label({ text: input.when, x: pad + sticker.width + Math.round(w * 0.04), y: y + sticker.height * 0.66, size: Math.round(w * 0.03), font: "hand", fill: secondary, opacity: 0.85 });
+      if (input.when) svg += label({ text: input.when, x: pad + sticker.width + Math.round(w * 0.04), y: y + sticker.height * 0.66, size: fitSize("hand", input.when, Math.round(w * 0.03), w - pad * 2 - sticker.width - Math.round(w * 0.04), 0.5), font: "hand", fill: secondary, opacity: 0.85 });
       y += sticker.height + Math.round(h * 0.045);
     } else if (input.when) {
-      svg += label({ text: input.when, x: pad, y, size: Math.round(w * 0.032), font: "hand", fill: secondary, opacity: 0.85 });
+      svg += label({ text: input.when, x: pad, y, size: fitSize("hand", input.when, Math.round(w * 0.032), w - pad * 2, 0.55), font: "hand", fill: secondary, opacity: 0.85 });
       y += Math.round(w * 0.06);
     }
     if (input.cta) svg += label({ text: `${input.cta} →`, x: pad, y: y + Math.round(w * 0.01), size: Math.round(w * 0.036), font: "display", fill: primary });
@@ -311,7 +348,7 @@ const minimal: Template = {
     svg += block.svg;
     y = block.endY + Math.round(h * 0.07);
     if (input.price) { svg += label({ text: input.price, x: pad, y: y + Math.round(w * 0.12), size: Math.round(w * 0.15), font: "display", fill: primary, letterSpacing: -w * 0.004 }); y += Math.round(w * 0.17); }
-    if (input.when) svg += label({ text: input.when, x: pad, y, size: Math.round(w * 0.028), font: "body", fill: secondary, opacity: 0.7 });
+    if (input.when) svg += label({ text: input.when, x: pad, y, size: fitSize("body", input.when, Math.round(w * 0.028), w - pad * 2, 0.55), font: "body", fill: secondary, opacity: 0.7 });
     const footY = h - pad * 0.7;
     let fx = pad;
     if (input.cta) {

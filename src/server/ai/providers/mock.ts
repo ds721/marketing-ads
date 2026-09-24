@@ -72,17 +72,96 @@ function classifyIdea(text: string): string {
   return "ANNOUNCEMENT";
 }
 
-function weekendWindow(text: string): { start: string | null; end: string | null; days: string | null } {
+const MONTHS = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec";
+/** "1 October", "Oct 15", "15th Aug", "15/10", "15-10-2026". */
+const DATE_TOKEN = new RegExp(
+  `\\b(?:\\d{1,2}(?:st|nd|rd|th)?\\s+(?:${MONTHS})[a-z]*|(?:${MONTHS})[a-z]*\\s+\\d{1,2}(?:st|nd|rd|th)?|\\d{1,2}[/-]\\d{1,2}(?:[/-]\\d{2,4})?)\\b`,
+  "gi",
+);
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+/**
+ * When is this running? Echoed from the owner's own words, never inferred —
+ * "Sunday" is never widened to "the weekend", and a month is never guessed.
+ *
+ * Owners write timing in every shape: "every Tuesday and Wednesday",
+ * "1 October to 31 October", "this weekend". Anything we fail to recognise
+ * here turns into another question on screen, so this is deliberately broad.
+ */
+export function weekendWindow(text: string): { start: string | null; end: string | null; days: string | null } {
   const t = text.toLowerCase();
-  const sat = /saturday/.test(t);
-  const sun = /sunday/.test(t);
-  // Echo exactly the days the owner named — never widen "Sunday" to the weekend.
-  if (sat && !sun) return { start: null, end: null, days: "Saturday" };
-  if (sun && !sat) return { start: null, end: null, days: "Sunday" };
-  if (/weekend/.test(t) || (sat && sun)) return { start: null, end: null, days: "Saturday & Sunday" };
-  if (/today/.test(t)) return { start: null, end: null, days: "Today" };
-  if (/tomorrow/.test(t)) return { start: null, end: null, days: "Tomorrow" };
+
+  // Named days, echoed in week order and only the ones actually said.
+  const named = WEEKDAYS.filter((d) => new RegExp(`\\b${d}`, "i").test(t));
+  const dayLabel =
+    named.length === 0 || named.length === 7
+      ? null
+      : named.length === 1
+        ? named[0]!
+        : `${named.slice(0, -1).join(", ")} & ${named[named.length - 1]!}`;
+
+  // Explicit calendar dates are the most specific thing said, but "every
+  // Tuesday and Wednesday, 1–31 October" means both, and an owner who wrote
+  // both wants both on the flyer.
+  const dates = text.match(DATE_TOKEN);
+  if (dates && dates.length > 0) {
+    const first = dates[0]!.trim();
+    const last = dates.length > 1 ? dates[dates.length - 1]!.trim() : null;
+    const span = last ? `${first} – ${last}` : first;
+    const prefix = dayLabel ? `${/\bevery\b/.test(t) ? "Every " : ""}${dayLabel}, ` : "";
+    return { start: first, end: last, days: `${prefix}${span}` };
+  }
+
+  if (named.length === 7 || /\b(daily|every\s*day|all\s*week)\b/.test(t)) {
+    return { start: null, end: null, days: "Every day" };
+  }
+  if (named.length === 2 && named[0] === "Saturday" && named[1] === "Sunday") {
+    return { start: null, end: null, days: "Saturday & Sunday" };
+  }
+  if (dayLabel) {
+    return { start: null, end: null, days: /\bevery\b/.test(t) ? `Every ${dayLabel}` : dayLabel };
+  }
+
+  if (/weekend/.test(t)) return { start: null, end: null, days: "Saturday & Sunday" };
+  if (/\btoday\b/.test(t)) return { start: null, end: null, days: "Today" };
+  if (/\btomorrow\b/.test(t)) return { start: null, end: null, days: "Tomorrow" };
   return { start: null, end: null, days: null };
+}
+
+
+
+const DAY_WORDS =
+  "weekend|weekends|weekday|weekdays|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday";
+/** "every Tuesday", "this weekend", "on Sunday" — where the offer name ends. */
+const TIME_CLAUSE = new RegExp(
+  `\\b(?:(?:every|each|this|on|all|from|starting|until|till)\\s+)?(?:${DAY_WORDS})\\b`,
+  "i",
+);
+const TRAILING_JOINER = /[\s,–-]+(?:and|or|for|on|at|from|every|each|all|this|with|starting|only)$/i;
+
+/**
+ * The offer name is the headline, so it has to read as a phrase. The price and
+ * the timing are stored as separate facts and printed separately, so they're
+ * cut here — but *cut*, not excised: deleting "Tuesday" and "Wednesday" out of
+ * "every Tuesday and Wednesday this month" leaves "every and this month" on
+ * the flyer. We truncate at the point the timing starts instead.
+ */
+export function offerNameFrom(text: string): string | null {
+  const sentence = (text.split(/[.,\n]/)[0] ?? "").replace(
+    /(?:for\s+)?(?:₹|rs\.?\s?|inr\s?)\d[\d,]*/i,
+    "",
+  );
+
+  let name = sentence;
+  const at = sentence.search(TIME_CLAUSE);
+  // Only cut when something substantial comes first — "Weekend brunch buffet"
+  // starts with a day word and is the whole offer name.
+  if (at > 0 && sentence.slice(0, at).trim().length >= 3) name = sentence.slice(0, at);
+
+  name = name.replace(/\s{2,}/g, " ").trim();
+  while (TRAILING_JOINER.test(name)) name = name.replace(TRAILING_JOINER, "");
+  name = name.replace(/[\s,–-]+$/, "").trim();
+  return name.slice(0, 80) || null;
 }
 
 export class MockAIProvider implements AIProvider {
@@ -163,14 +242,7 @@ export class MockAIProvider implements AIProvider {
       facts: {
         // The offer name is the sentence minus the price and the day — those
         // are separate facts and would otherwise be printed twice.
-        offerName:
-          (text.split(/[.,\n]/)[0] ?? "")
-            .replace(/(?:for\s+)?(?:₹|rs\.?\s?|inr\s?)\d[\d,]*/i, "")
-            .replace(/\b(this|on|for)?\s*(weekend|today|tomorrow|saturday|sunday|monday|tuesday|wednesday|thursday|friday)(\s+only)?\b/gi, "")
-            .replace(/\s{2,}/g, " ")
-            .replace(/\s+[-–,]\s*$/, "")
-            .trim()
-            .slice(0, 80) || null,
+        offerName: offerNameFrom(text),
         price: price ? `₹${price}` : null,
         discount,
         startDate: window.start,
@@ -188,7 +260,9 @@ export class MockAIProvider implements AIProvider {
     const cta = ctx.brand?.cta ?? "Order now";
     const price = text.match(RUPEE)?.[1];
     const priceLabel = price ? `₹${price}` : null;
-    const subject = text.split(/[.,\n]/)[0]?.trim() || "our latest offer";
+    // Use the cleaned offer name, not the raw sentence — otherwise the price
+    // the owner typed is printed twice in one line.
+    const subject = offerNameFrom(text) ?? "our latest offer";
     const channels = (ctx.platforms?.length ? ctx.platforms : ["instagram"]).slice(0, 4);
     const window = weekendWindow(text);
 
@@ -211,7 +285,16 @@ export class MockAIProvider implements AIProvider {
       const base = {
         platform: p,
         title: `${subject}${p === "instagram" ? "" : ` — ${p.replace("_", " ")}`}`.slice(0, 120),
-        hook: p === "instagram" ? `${window.days ?? "This week"} only 👀` : null,
+        // A short day name reads well as "Sunday only 👀"; a full date range
+        // does not, so it gets its own phrasing.
+        hook:
+          p === "instagram"
+            ? window.days
+              ? window.days.length > 22
+                ? `${window.days} 👀`
+                : `${window.days} only 👀`
+              : "This week only 👀"
+            : null,
         body: line(p),
         cta,
         hashtags: p === "instagram" ? ["#" + city.replace(/\s/g, ""), "#local", "#offer"] : [],
@@ -378,6 +461,10 @@ export class MockAIProvider implements AIProvider {
         },
       ],
     };
+  }
+
+  async readImage(): Promise<string> {
+    return "[Demo AI] Image reading needs a real provider.";
   }
 
   /** Minimal PNG encoder — a brand-coloured gradient placeholder for dev. */

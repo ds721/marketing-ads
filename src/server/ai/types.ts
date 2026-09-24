@@ -35,6 +35,14 @@ export interface StructuredGenerationInput extends TextGenerationInput {
 export interface ImageGenerationInput {
   prompt: string;
   size?: "square" | "portrait" | "story";
+  /**
+   * Reference images the model composes from — the owner's product photo.
+   * With these the model edits rather than invents, so the cake on the flyer
+   * is their cake.
+   */
+  references?: Buffer[];
+  /** Higher quality costs more and takes longer; worth it for a flyer. */
+  quality?: "low" | "medium" | "high";
 }
 
 export interface ImageGenerationResult {
@@ -81,4 +89,10 @@ export interface AIProvider {
   /** Structured output validated against a zod schema before it's returned. */
   generateStructured<T>(input: StructuredGenerationInput, schema: z.ZodType<T>): Promise<{ data: T; model: string; provider: string }>;
   generateImage(input: ImageGenerationInput): Promise<ImageGenerationResult>;
+  /**
+   * Reads an image and answers a question about it. Used to verify that the
+   * price and phone number a model painted onto a flyer are the ones the
+   * owner actually gave us.
+   */
+  readImage(input: { image: Buffer; question: string }): Promise<string>;
 }

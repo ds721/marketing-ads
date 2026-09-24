@@ -83,6 +83,45 @@ export function textBlock(opts: {
 }
 
 /** One line of text. */
+/**
+ * The largest size at or below `size` at which `text` fits `maxWidth`.
+ *
+ * Owners write timing in whatever length suits them — "Sunday" or "Every
+ * Tuesday & Wednesday, 1 October – 31 October" — and both have to sit on one
+ * line without running off the canvas or over the call to action.
+ */
+export function fitSize(
+  font: FontId,
+  text: string,
+  size: number,
+  maxWidth: number,
+  minRatio = 0.62,
+  letterSpacing = 0,
+): number {
+  return fitLabel(font, text, size, maxWidth, minRatio, letterSpacing).size;
+}
+
+/**
+ * As `fitSize`, but also scales the tracking down with the type. Wide letter
+ * spacing on a long line is what pushed text off the canvas: at 0.012em over
+ * 48 characters it adds more width than the glyphs themselves.
+ */
+export function fitLabel(
+  font: FontId,
+  text: string,
+  size: number,
+  maxWidth: number,
+  minRatio = 0.62,
+  letterSpacing = 0,
+): { size: number; letterSpacing: number } {
+  if (maxWidth <= 0 || !text) return { size, letterSpacing };
+  const min = Math.max(1, size * minRatio);
+  let s = size;
+  while (s > min && measure(font, text, s, letterSpacing * (s / size)) > maxWidth) s -= 1;
+  const fitted = Math.max(Math.round(s), Math.round(min));
+  return { size: fitted, letterSpacing: letterSpacing * (fitted / size) };
+}
+
 export function label(opts: {
   text: string;
   x: number;
@@ -107,14 +146,20 @@ export function pill(opts: {
   color: string;
   font?: FontId;
   anchor?: "start" | "end" | "middle";
+  /** Shrink the text to keep the pill within this width. */
+  maxWidth?: number;
 }): { svg: string; width: number; height: number } {
   const font = opts.font ?? "display";
-  const padX = opts.size * 0.9;
-  const w = Math.round(measure(font, opts.text, opts.size) + padX * 2);
-  const h = Math.round(opts.size * 1.9);
+  // Shrink rather than overflow when the caller gives a width budget.
+  const size = opts.maxWidth
+    ? fitSize(font, opts.text, opts.size, opts.maxWidth - opts.size * 1.8)
+    : opts.size;
+  const padX = size * 0.9;
+  const w = Math.round(measure(font, opts.text, size) + padX * 2);
+  const h = Math.round(size * 1.9);
   const x = opts.anchor === "end" ? opts.x - w : opts.anchor === "middle" ? opts.x - w / 2 : opts.x;
   const svg = `<rect x="${x}" y="${opts.y}" rx="${h / 2}" width="${w}" height="${h}" fill="${opts.fill}"/>
-  ${textPath({ font, text: opts.text, x: x + w / 2, y: opts.y + h * 0.68, size: opts.size, fill: opts.color, anchor: "middle" })}`;
+  ${textPath({ font, text: opts.text, x: x + w / 2, y: opts.y + h * 0.68, size, fill: opts.color, anchor: "middle" })}`;
   return { svg, width: w, height: h };
 }
 

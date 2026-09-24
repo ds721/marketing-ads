@@ -5,6 +5,7 @@ import { db } from "@/server/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, StatusPill, PlatformBadge, SectionLabel, btnStyles } from "@/components/ui";
 import { PostEditor, ImagePicker, PublishNow } from "@/components/post-forms";
+import { DeletePost } from "@/components/delete-button";
 import { formatDateTime } from "@/lib/utils";
 
 export const metadata = { title: "Post" };
@@ -144,6 +145,7 @@ export default async function ContentPage({
               Connect Instagram
             </Link>
           )}
+          {canEdit && <DeletePost slug={slug} contentId={item.id} published={isLive} />}
         </aside>
       </div>
     </main>

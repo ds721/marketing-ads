@@ -1,6 +1,16 @@
 import type { DesignSpec } from "@/server/ai/schemas";
 import {
-  esc, cleanText, fitHeadline, textBlock, label, pill, shade, isLight, coverImage, blobPath,
+  esc,
+  fitLabel,
+  cleanText,
+  fitHeadline,
+  textBlock,
+  label,
+  pill,
+  shade,
+  isLight,
+  coverImage,
+  blobPath,
 } from "@/server/creative/svg";
 import { measure } from "@/server/creative/fonts";
 import { watermarkFragment } from "@/server/creative/watermark";
@@ -177,7 +187,9 @@ export function renderDesign(spec: DesignSpec, input: TemplateInput): string {
   }
   // When
   if (input.when) {
-    svg += label({ text: typography.headlineCase === "upper" ? input.when.toUpperCase() : input.when, x: ax, y: y + Math.round(w * 0.026), size: Math.round(w * 0.03), font: typography.body, fill: textFill, anchor, letterSpacing: typography.headlineCase === "upper" ? w * 0.004 : 0, opacity: 0.9 });
+    const whenText = typography.headlineCase === "upper" ? input.when.toUpperCase() : input.when;
+    const whenFit = fitLabel(typography.body, whenText, Math.round(w * 0.03), w - pad * 2, 0.55, typography.headlineCase === "upper" ? w * 0.004 : 0);
+    svg += label({ text: whenText, x: ax, y: y + Math.round(w * 0.026), size: whenFit.size, font: typography.body, fill: textFill, anchor, letterSpacing: whenFit.letterSpacing, opacity: 0.9 });
     y += Math.round(w * 0.032) + gap;
   }
   // CTA

@@ -7,6 +7,7 @@ import { CampaignActions } from "@/components/campaign-actions";
 import { ChangeLook } from "@/components/change-look";
 import { lookPreviews } from "@/server/creative/looks";
 import { PostCard } from "@/components/post-card";
+import { DeleteCampaign } from "@/components/delete-button";
 import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Campaign" };
@@ -150,6 +151,17 @@ export default async function CampaignPage({
             Approved. You can see and adjust every piece on your calendar.
           </p>
         </Card>
+      )}
+
+      {canEdit && (
+        <div className="mt-8 pt-6 border-t border-line">
+          <DeleteCampaign
+            slug={slug}
+            campaignId={campaign.id}
+            postCount={campaign.contentItems.length}
+            publishedCount={campaign.contentItems.filter((c) => c.status === "PUBLISHED").length}
+          />
+        </div>
       )}
     </main>
   );
