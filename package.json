@@ -14,7 +14,12 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "predeploy": "npm run typecheck && npm run lint && npm test",
+    "deploy": "git push origin main && echo 'Pushed \u2014 Vercel is building: https://vercel.com/deepzsiva-4947/marketing-ads'",
+    "deploy:status": "vercel ls marketing-ads",
+    "deploy:logs": "vercel logs https://marketing-ads-green.vercel.app",
+    "db:studio": "prisma studio"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

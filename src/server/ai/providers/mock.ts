@@ -52,7 +52,11 @@ function readContext(prompt: string): PromptContext {
 }
 
 const RUPEE = /(?:₹|rs\.?\s?|inr\s?)(\d[\d,]*)/i;
+/** A bare number the owner typed when asked "what's the price?" — "199". */
+const BARE_AMOUNT = /(?:^|\s)(\d{2,6})(?:\s|$)/;
 const PERCENT = /(\d{1,2})\s?%/;
+/** Offers whose value is the deal itself, so there is no price to ask for. */
+const SELF_PRICED = /buy\s*(one|1|any).{0,20}(get|free)|bogo|free\b|half\s*price|complimentary/i;
 
 function classifyIdea(text: string): string {
   const t = text.toLowerCase();
@@ -135,14 +139,18 @@ export class MockAIProvider implements AIProvider {
   private idea(ctx: PromptContext) {
     const text = ctx.idea?.text ?? "";
     const category = classifyIdea(text);
-    const price = text.match(RUPEE)?.[1] ?? null;
+    // A price the owner marked (₹199), or a bare number they typed when asked.
+    const price = text.match(RUPEE)?.[1] ?? text.match(BARE_AMOUNT)?.[1] ?? null;
     const discount = text.match(PERCENT)?.[0] ?? null;
     const window = weekendWindow(text);
+    // "Buy one get one" and "free" price themselves — the deal IS the offer.
+    const selfPriced = SELF_PRICED.test(text);
 
     // Guardrail (§42): commercial facts are only ever echoed from the owner's
-    // own words. When a promotion has no price, ask instead of inventing one.
+    // own words. When a promotion has no price, ask instead of inventing one —
+    // but only when a price is actually the missing piece.
     const missingInfo: string[] = [];
-    if ((category === "PROMOTION" || category === "DISCOUNT") && !price && !discount) {
+    if ((category === "PROMOTION" || category === "DISCOUNT") && !price && !discount && !selfPriced) {
       missingInfo.push("What is the offer price or discount?");
     }
     if ((category === "PROMOTION" || category === "DISCOUNT" || category === "EVENT") && !window.days) {

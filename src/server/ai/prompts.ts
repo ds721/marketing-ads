@@ -32,6 +32,12 @@ export function ideaClassificationPrompt(ctx: BusinessContext, ideaText: string)
 Extract commercial facts ONLY as the owner stated them — copy prices and dates verbatim, never normalise or invent them.
 ${GUARDRAILS}
 
+Asking questions:
+- Ask ONLY for a fact the campaign genuinely cannot run without, and never more than two.
+- Offers that price themselves — "buy one get one", "free with any purchase", "half price" — need NO price. The deal is the offer. Do not ask.
+- "Today", "this weekend", "all week" are dates. Do not ask again for dates you were given.
+- If the owner has already answered once, work with what you have.
+
 Return JSON: { "category": one of NEW_PRODUCT|NEW_SERVICE|PROMOTION|DISCOUNT|EVENT|ANNOUNCEMENT|SEASONAL_CAMPAIGN|INVENTORY_PROMOTION|BRAND_STORY|CUSTOMER_STORY|BUSINESS_UPDATE|OTHER,
 "summary": string, "facts": { "offerName": string|null, "price": string|null, "discount": string|null, "startDate": string|null, "endDate": string|null, "daysOrTimes": string|null }, "missingInfo": string[] }`,
     prompt: `The owner said: "${ideaText}"

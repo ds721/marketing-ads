@@ -31,7 +31,7 @@ export async function submitIdea(params: {
   userId: string;
   text: string;
   mediaAssetId?: string | null;
-  /** Answers to a previous round of missingInfo, appended to the idea text. */
+  /** The owner's answer to the one question we're allowed to ask. */
   extraDetail?: string | null;
   /** Creative choices made up front: which look, which photo, which AI design. */
   templateId?: string | null;
@@ -39,9 +39,11 @@ export async function submitIdea(params: {
   designSpec?: DesignSpec | null;
 }): Promise<IdeaResult> {
   const { tenantId, userId } = params;
-  const text = params.extraDetail
-    ? `${params.text}\n\nOwner added: ${params.extraDetail}`
-    : params.text;
+  // One question, once. `text` already carries any earlier answer, so strip
+  // previous additions before appending — otherwise repeated rounds pile up
+  // as "Owner added: … Owner added: …" and the sentence turns to noise.
+  const base = params.text.split(/\n\nOwner added:/)[0] ?? params.text;
+  const text = params.extraDetail ? `${base}\n\nOwner added: ${params.extraDetail}` : params.text;
 
   await checkEntitlement(tenantId, "ai_text");
 
@@ -61,14 +63,19 @@ export async function submitIdea(params: {
   );
   await recordUsage(tenantId, "ai_text");
 
+  // We ask at most one question. If the owner has already answered, we build
+  // the campaign with whatever facts we have — an offer with no price simply
+  // doesn't print one. Asking twice is how a helpful product becomes a loop.
+  const missingInfo = params.extraDetail ? [] : classified.data.missingInfo;
+
   const idea = await db.idea.create({
     data: {
       tenantId,
       text,
       mediaAssetId: params.mediaAssetId ?? null,
       classification: classified.data.category as IdeaCategory,
-      missingInfo: classified.data.missingInfo,
-      status: classified.data.missingInfo.length > 0 ? "NEEDS_INFO" : "PROPOSED",
+      missingInfo,
+      status: missingInfo.length > 0 ? "NEEDS_INFO" : "PROPOSED",
       createdById: userId,
     },
   });
@@ -80,22 +87,23 @@ export async function submitIdea(params: {
     provider: classified.provider,
     status: "ok",
     category: classified.data.category,
-    missingInfo: classified.data.missingInfo.length,
+    missingInfo: missingInfo.length,
+    answered: Boolean(params.extraDetail),
   });
 
   // Step 2 — stop and ask rather than invent a price or a date.
-  if (classified.data.missingInfo.length > 0) {
+  if (missingInfo.length > 0) {
     await db.notification.create({
       data: {
         tenantId,
         userId,
         kind: "ai_question",
         title: "I need one more detail",
-        body: classified.data.missingInfo[0],
+        body: missingInfo[0],
         href: `/app/_/ideas/${idea.id}`,
       },
     });
-    return { idea, missingInfo: classified.data.missingInfo };
+    return { idea, missingInfo };
   }
 
   // Step 3 — build the campaign around the locked facts.

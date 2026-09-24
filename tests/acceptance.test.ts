@@ -141,3 +141,47 @@ describe("end-to-end: one sentence becomes a reviewable campaign", () => {
     expect(planned.every((i) => i.scheduledAt!.toISOString().slice(0, 7) === monthKey())).toBe(true);
   });
 });
+
+// ── The question loop ─────────────────────────────────────────────────────
+// A product that keeps asking is worse than one that guesses politely. We
+// ask at most once, and only for a fact the campaign truly needs.
+
+describe("asking the owner for detail", () => {
+  it("never asks for a price on an offer that prices itself", async () => {
+    const result = await submitIdea({
+      tenantId,
+      userId,
+      text: "Today offer buy any cake and get another cake",
+    });
+    expect(result.missingInfo).toHaveLength(0);
+    expect(result.campaignId).toBeDefined();
+  });
+
+  it("accepts a bare number as the answer and never asks twice", async () => {
+    const text = "Weekend cake offer";
+    const first = await submitIdea({ tenantId, userId, text });
+    expect(first.missingInfo.length).toBeGreaterThan(0);
+
+    // The owner types "199" — no rupee sign, as people actually do.
+    const second = await submitIdea({ tenantId, userId, text, extraDetail: "199" });
+    expect(second.missingInfo).toHaveLength(0);
+    expect(second.campaignId).toBeDefined();
+
+    const campaign = await db.campaign.findUniqueOrThrow({ where: { id: second.campaignId! } });
+    expect((campaign.facts as Record<string, string | null>).price).toBe("₹199");
+  });
+
+  it("proceeds after one answer even when the answer explains nothing", async () => {
+    const text = "Something special this week";
+    const answered = await submitIdea({ tenantId, userId, text, extraDetail: "not sure yet" });
+    expect(answered.missingInfo).toHaveLength(0);
+    expect(answered.campaignId).toBeDefined();
+  });
+
+  it("does not pile up repeated answers in the idea text", async () => {
+    const text = "Cake offer";
+    const once = await submitIdea({ tenantId, userId, text, extraDetail: "199" });
+    const twice = await submitIdea({ tenantId, userId, text: once.idea.text, extraDetail: "299" });
+    expect(twice.idea.text.match(/Owner added:/g) ?? []).toHaveLength(1);
+  });
+});
