@@ -43,6 +43,8 @@ export interface AiFlyerBrief {
   style: FlyerStyle;
   format: "square" | "story";
   brand: { primary: string; secondary: string; accent: string };
+  /** True when the owner supplied a design to imitate. */
+  hasStyleRef?: boolean;
 }
 
 /**
@@ -58,7 +60,15 @@ export function flyerPrompt(brief: AiFlyerBrief): string {
   lines.push(
     "Use the provided product photograph as the hero subject — keep the product recognisably the same, but relight and compose it into a polished advertisement with professional styling, props and depth.",
   );
-  lines.push(`Art direction: ${STYLE_DIRECTION[brief.style]}`);
+  if (brief.hasStyleRef) {
+    // The owner pointed at a design and said "like this". Their reference is
+    // the art direction; the preset is only a fallback description.
+    lines.push(
+      "A reference design is attached. Match its visual style closely — its lighting, materials, colour treatment, typographic weight, composition and level of finish. Do NOT copy any text, logo, product or branding from the reference; it is a style guide only.",
+    );
+  } else {
+    lines.push(`Art direction: ${STYLE_DIRECTION[brief.style]}`);
+  }
   lines.push(
     `Brand colours to work with: ${brief.brand.primary} as primary, ${brief.brand.accent} as accent, ${brief.brand.secondary} as the deep tone.`,
   );
@@ -177,6 +187,8 @@ export async function generateAiFlyer(params: {
   brief: AiFlyerBrief;
   /** The owner's product photo. */
   referenceAssetId?: string | null;
+  /** A design the owner wants imitated. */
+  styleRefAssetId?: string | null;
 }): Promise<{ assetId: string; readBack?: string }> {
   const { tenantId, userId, brief } = params;
   if (!isImageGenerationConfigured()) throw new AiFlyerUnavailable();
@@ -185,19 +197,22 @@ export async function generateAiFlyer(params: {
   const ai = getAIProvider();
   const storage = getStorageProvider();
 
-  let references: Buffer[] | undefined;
-  if (params.referenceAssetId) {
-    const asset = await db.asset.findFirst({
-      where: { id: params.referenceAssetId, tenantId },
-    });
-    if (asset && asset.kind !== "VIDEO") {
-      const bytes = await storage.get(asset.storageKey);
-      // The edits endpoint wants PNG; normalise whatever the owner uploaded.
-      references = [await sharp(bytes).rotate().resize(1024, 1024, { fit: "inside" }).png().toBuffer()];
-    }
-  }
+  // The product photo comes first so the model reads it as the subject; the
+  // style reference follows as art direction.
+  const load = async (id: string | null | undefined): Promise<Buffer | null> => {
+    if (!id) return null;
+    const asset = await db.asset.findFirst({ where: { id, tenantId } });
+    if (!asset || asset.kind === "VIDEO") return null;
+    const bytes = await storage.get(asset.storageKey);
+    // The edits endpoint wants PNG; normalise whatever the owner uploaded.
+    return sharp(bytes).rotate().resize(1024, 1024, { fit: "inside" }).png().toBuffer();
+  };
+  const loaded = (await Promise.all([load(params.referenceAssetId), load(params.styleRefAssetId)])).filter(
+    (b): b is Buffer => b !== null,
+  );
+  const references = loaded.length > 0 ? loaded : undefined;
 
-  const prompt = flyerPrompt(brief);
+  const prompt = flyerPrompt({ ...brief, hasStyleRef: Boolean(params.styleRefAssetId) });
   let lastReason = "";
   let readBack: string | undefined;
 

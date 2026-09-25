@@ -49,3 +49,42 @@ describe("fitting text to a width budget", () => {
     expect(fitSize("body", LONG, 32, 0)).toBe(32);
   });
 });
+
+import { fitHeadlineBox } from "@/server/creative/svg";
+
+// A long headline used to wrap to three lines and shove the price down onto
+// the date and the phone number. The headline is the element that must yield.
+describe("fitting a headline into a box", () => {
+  const LONG = "BUY ONE GET ONE FREE ON ALL CAKES";
+
+  it("stays inside the height it is given", () => {
+    const box = 220;
+    const fit = fitHeadlineBox(LONG, "condensed", 900, 3, 170, 95, box, 0.95);
+    const used = fit.size + (fit.lines.length - 1) * fit.size * 0.95;
+    expect(used).toBeLessThanOrEqual(box);
+  });
+
+  it("shrinks the type rather than clipping the words", () => {
+    const fit = fitHeadlineBox(LONG, "condensed", 900, 3, 170, 95, 220, 0.95);
+    expect(fit.lines.join(" ")).toContain("CAKES");
+    expect(fit.size).toBeLessThan(170);
+  });
+
+  it("keeps full size when there is room", () => {
+    const fit = fitHeadlineBox("CAKE DAY", "condensed", 900, 3, 170, 95, 600, 0.95);
+    expect(fit.size).toBe(170);
+    expect(fit.lines).toHaveLength(1);
+  });
+
+  it("drops to fewer lines when the box is very short", () => {
+    const fit = fitHeadlineBox(LONG, "condensed", 900, 3, 170, 95, 110, 0.95);
+    const used = fit.size + (fit.lines.length - 1) * fit.size * 0.95;
+    expect(used).toBeLessThanOrEqual(110 + fit.size * 0.05);
+    expect(fit.lines.length).toBeLessThanOrEqual(2);
+  });
+
+  it("never returns zero lines", () => {
+    const fit = fitHeadlineBox(LONG, "condensed", 900, 3, 170, 95, 10, 0.95);
+    expect(fit.lines.length).toBeGreaterThanOrEqual(1);
+  });
+});

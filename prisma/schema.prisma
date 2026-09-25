@@ -366,6 +366,12 @@ model Idea {
   tenantId       String
   text           String
   mediaAssetId   String?
+  // Creative choices the owner made in the studio. Held here so they survive
+  // the one question we're allowed to ask before the campaign is built.
+  templateId      String?
+  heroAssetId     String?
+  styleRefAssetId String?
+  designSpec      Json?
   classification IdeaCategory?
   missingInfo    String[]      @default([])
   status         IdeaStatus    @default(RECEIVED)
@@ -408,6 +414,9 @@ model Campaign {
   // AI-authored design spec (see designSpecSchema) the flyers are drawn from.
   templateId    String?
   heroAssetId   String?
+  // A design the owner pointed at and said "make it look like this". Steers
+  // the art direction; never a source of words or prices.
+  styleRefAssetId String?
   designSpec    Json?
   proposal      Json? // full AI proposal for review UI
   generatedBy   String?

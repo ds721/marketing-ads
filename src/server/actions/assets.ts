@@ -83,6 +83,11 @@ export async function uploadAssetAction(
     }
   }
 
+  // An upload can say what it's for. A design reference is tagged so it shows
+  // in the reference row and never in the product-photo row.
+  const purpose = String(formData.get("purpose") ?? "").trim().toLowerCase();
+  const tags = purpose === "style-ref" ? ["style-ref"] : [];
+
   const asset = await db.asset.create({
     data: {
       tenantId: ctx.tenant.id,
@@ -95,6 +100,7 @@ export async function uploadAssetAction(
       width,
       height,
       posterKey,
+      tags,
       createdById: ctx.userId,
     },
   });

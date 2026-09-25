@@ -51,6 +51,40 @@ export function fitHeadline(
 }
 
 /** Multi-line block. `y` is the first baseline. Returns markup and the last baseline. */
+/**
+ * As `fitHeadline`, but also keeps the wrapped block inside a height budget.
+ *
+ * Width alone is not enough: "BUY ONE GET ONE FREE ON ALL CAKES" wraps to
+ * three happy lines and then shoves the price down onto the date and the
+ * phone number. The headline is the element that should yield.
+ */
+export function fitHeadlineBox(
+  text: string,
+  font: FontId,
+  maxWidth: number,
+  maxLines: number,
+  startSize: number,
+  minSize: number,
+  maxHeight: number,
+  lineHeight = 1,
+): { lines: string[]; size: number } {
+  const fits = (lines: string[], size: number) =>
+    lines.length <= maxLines &&
+    !lines[lines.length - 1]?.endsWith("…") &&
+    size + (lines.length - 1) * size * lineHeight <= maxHeight;
+
+  let size = startSize;
+  while (size > minSize) {
+    const lines = wrapWidth(font, text, size, maxWidth, maxLines + 1);
+    if (fits(lines, size)) return { lines, size };
+    size = Math.round(size * 0.92);
+  }
+  // At the floor, drop lines rather than overflow — a clipped headline is
+  // worse than a shorter one.
+  const room = Math.max(1, Math.floor((maxHeight - minSize) / (minSize * lineHeight)) + 1);
+  return { lines: wrapWidth(font, text, minSize, maxWidth, Math.min(maxLines, room)), size: minSize };
+}
+
 export function textBlock(opts: {
   lines: string[];
   x: number;

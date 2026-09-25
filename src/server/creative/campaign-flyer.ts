@@ -9,6 +9,7 @@ import { designSpecSchema } from "@/server/ai/schemas";
 import { isImageGenerationConfigured } from "@/server/ai";
 import { generateAiFlyer, type FlyerStyle } from "@/server/creative/ai-flyer";
 import { log } from "@/server/logger";
+import { paletteFrom } from "@/server/creative/palette";
 
 // ── Automatic campaign creatives ──────────────────────────────────────────
 // A campaign isn't done until it has something to post. The moment a
@@ -52,6 +53,30 @@ export async function createCampaignFlyers(params: {
   ]);
   if (!campaign || items.length === 0) return { created: 0, attached: 0 };
 
+  // When the owner pointed at a design they like, take its colours. Without an
+  // image model this is the only part of a reference we can honour — but it is
+  // the part that changes the flyer most, so it works with or without credit.
+  let refBrand: { primary: string; secondary: string; accent: string } | null = null;
+  if (campaign.styleRefAssetId) {
+    try {
+      const ref = await db.asset.findFirst({
+        where: { id: campaign.styleRefAssetId, tenantId },
+        select: { storageKey: true, kind: true },
+      });
+      if (ref && ref.kind !== "VIDEO") {
+        const pal = await paletteFrom(await getStorageProvider().get(ref.storageKey));
+        refBrand = { primary: pal.background, secondary: pal.background2, accent: pal.accent };
+      }
+    } catch (err) {
+      log.error({
+        operation: "campaign.style_ref_palette",
+        tenantId,
+        status: "error",
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   const spec = flyerSpecFromCampaign({
     campaignName: campaign.name,
     facts: (campaign.facts as Record<string, string | null>) ?? {},
@@ -61,7 +86,7 @@ export async function createCampaignFlyers(params: {
       address: profile?.address ?? null,
       city: profile?.city ?? null,
     },
-    brand: {
+    brand: refBrand ?? {
       primary: brand?.primaryColor ?? "#D6367B",
       secondary: brand?.secondaryColor ?? "#2E2447",
       accent: brand?.accentColor ?? "#F5A31C",
@@ -120,6 +145,7 @@ export async function createCampaignFlyers(params: {
           tenantId,
           userId: userId ?? "",
           referenceAssetId: campaign.heroAssetId,
+          styleRefAssetId: campaign.styleRefAssetId,
           brief: {
             headline: spec.headline,
             subline: spec.subhead,

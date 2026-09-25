@@ -36,6 +36,7 @@ export interface PreviewContext {
 export async function lookPreviews(tenantId: string, heroAssetId?: string | null): Promise<{
   looks: LookPreview[];
   photos: PhotoChoice[];
+  styleRefs: PhotoChoice[];
   defaultLook: string;
   context: PreviewContext;
   canGeneratePhotos: boolean;
@@ -46,12 +47,26 @@ export async function lookPreviews(tenantId: string, heroAssetId?: string | null
     db.brandSettings.findUnique({ where: { tenantId } }),
     db.businessProfile.findUnique({ where: { tenantId } }),
     db.asset.findMany({
-      where: { tenantId, kind: { in: ["IMAGE", "GENERATED"] }, sourceAssetId: null, mimeType: { not: "image/svg+xml" } },
+      // Design references live in their own row, so keep them out of this one.
+      where: {
+        tenantId,
+        kind: { in: ["IMAGE", "GENERATED"] },
+        sourceAssetId: null,
+        mimeType: { not: "image/svg+xml" },
+        NOT: { tags: { has: "style-ref" } },
+      },
       orderBy: { createdAt: "desc" },
       take: 8,
       select: { id: true, filename: true },
     }),
   ]);
+
+  const styleRefs = await db.asset.findMany({
+    where: { tenantId, tags: { has: "style-ref" } },
+    orderBy: { createdAt: "desc" },
+    take: 8,
+    select: { id: true, filename: true },
+  });
 
   // Preview with the chosen photo, else the most recent one, else none.
   const previewPhotoId = heroAssetId ?? photos[0]?.id ?? null;
@@ -94,6 +109,7 @@ export async function lookPreviews(tenantId: string, heroAssetId?: string | null
   return {
     looks,
     photos,
+    styleRefs,
     defaultLook: brand?.flyerTemplate ?? DEFAULT_TEMPLATE_ID,
     canGeneratePhotos: isImageGenerationConfigured(),
     context: {

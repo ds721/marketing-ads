@@ -36,6 +36,8 @@ export async function submitIdea(params: {
   /** Creative choices made up front: which look, which photo, which AI design. */
   templateId?: string | null;
   heroAssetId?: string | null;
+  /** A design the owner wants the flyers to look like. */
+  styleRefAssetId?: string | null;
   designSpec?: DesignSpec | null;
 }): Promise<IdeaResult> {
   const { tenantId, userId } = params;
@@ -73,6 +75,12 @@ export async function submitIdea(params: {
       tenantId,
       text,
       mediaAssetId: params.mediaAssetId ?? null,
+      // Kept on the idea so the look, photo and reference the owner picked in
+      // the studio survive the question we're about to ask them.
+      templateId: params.templateId ?? null,
+      heroAssetId: params.heroAssetId ?? null,
+      styleRefAssetId: params.styleRefAssetId ?? null,
+      designSpec: (params.designSpec ?? undefined) as Prisma.InputJsonValue | undefined,
       classification: classified.data.category as IdeaCategory,
       missingInfo,
       status: missingInfo.length > 0 ? "NEEDS_INFO" : "PROPOSED",
@@ -115,6 +123,7 @@ export async function submitIdea(params: {
     facts: classified.data.facts,
     templateId: params.templateId ?? null,
     heroAssetId: params.heroAssetId ?? null,
+    styleRefAssetId: params.styleRefAssetId ?? null,
     designSpec: params.designSpec ?? null,
   });
 
@@ -138,6 +147,7 @@ export async function generateCampaignForIdea(params: {
   facts: Record<string, string | null>;
   templateId?: string | null;
   heroAssetId?: string | null;
+  styleRefAssetId?: string | null;
   designSpec?: DesignSpec | null;
 }): Promise<string> {
   const { tenantId, userId, idea, ideaText, facts } = params;
@@ -170,6 +180,7 @@ export async function generateCampaignForIdea(params: {
     generatedBy: `${proposal.provider}:${proposal.model}`,
     templateId: params.templateId ?? null,
     heroAssetId: params.heroAssetId ?? null,
+    styleRefAssetId: params.styleRefAssetId ?? null,
     designSpec: params.designSpec ?? null,
   });
 
@@ -209,6 +220,7 @@ async function persistProposal(params: {
   generatedBy: string;
   templateId?: string | null;
   heroAssetId?: string | null;
+  styleRefAssetId?: string | null;
   designSpec?: DesignSpec | null;
 }): Promise<string> {
   const { tenantId, userId, proposal, facts } = params;
@@ -236,6 +248,7 @@ async function persistProposal(params: {
         createdById: userId,
         templateId: params.templateId ?? null,
         heroAssetId: params.heroAssetId ?? null,
+        styleRefAssetId: params.styleRefAssetId ?? null,
         designSpec: (params.designSpec ?? undefined) as Prisma.InputJsonValue | undefined,
       },
     });

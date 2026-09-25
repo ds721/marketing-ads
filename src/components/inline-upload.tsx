@@ -11,10 +11,15 @@ import { uploadAssetAction } from "@/server/actions/assets";
 export function InlineUpload({
   slug,
   accept = "image",
+  purpose,
+  label,
   onUploaded,
 }: {
   slug: string;
   accept?: "image" | "video" | "all";
+  /** Marks what the file is for, e.g. "style-ref". */
+  purpose?: string;
+  label?: string;
   onUploaded: (assetId: string, kind: "IMAGE" | "VIDEO") => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -39,6 +44,7 @@ export function InlineUpload({
           if (!file) return;
           const fd = new FormData();
           fd.set("file", file);
+          if (purpose) fd.set("purpose", purpose);
           start(async () => {
             const result = await uploadAssetAction(slug, {}, fd);
             if (result.error) setError(result.error);
@@ -57,7 +63,7 @@ export function InlineUpload({
         title={error ?? "Upload from your phone or computer"}
         className={`w-16 h-16 rounded-[10px] border-2 border-dashed text-[11px] font-bold leading-tight cursor-pointer disabled:opacity-50 ${error ? "border-chili text-chili-deep" : "border-line-strong text-ink-soft hover:border-beet hover:text-beet"}`}
       >
-        {pending ? "Uploading…" : error ? "Failed — retry" : "＋ Upload"}
+        {pending ? "Uploading…" : error ? "Failed — retry" : (label ?? "＋ Upload")}
       </button>
     </>
   );

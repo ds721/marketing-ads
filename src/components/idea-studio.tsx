@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { submitIdeaAction, type DesignOptionDto } from "@/server/actions/marketing";
+import { submitIdeaAction, stylePaletteAction, type DesignOptionDto } from "@/server/actions/marketing";
 import type { FormState } from "@/server/actions/auth";
 import { FormError, btnStyles } from "@/components/ui";
 import { LookPicker } from "@/components/look-picker";
 import { DesignPicker } from "@/components/design-picker";
 import { PhotoGenerator } from "@/components/photo-generator";
+import { StyleReference } from "@/components/style-reference";
 import { renderDesign } from "@/server/creative/design-renderer";
 import { renderTemplate } from "@/server/creative/templates";
 import { cleanText } from "@/server/creative/svg";
@@ -45,6 +46,7 @@ export function IdeaStudio({
   slug,
   looks,
   photos,
+  styleRefs,
   defaultLook,
   context,
   canGeneratePhotos,
@@ -52,6 +54,7 @@ export function IdeaStudio({
   slug: string;
   looks: LookPreview[];
   photos: PhotoChoice[];
+  styleRefs: PhotoChoice[];
   defaultLook: string;
   context: PreviewContext;
   canGeneratePhotos: boolean;
@@ -60,6 +63,9 @@ export function IdeaStudio({
   const [text, setText] = useState("");
   const [photoId, setPhotoId] = useState<string | null>(photos[0]?.id ?? null);
   const [design, setDesign] = useState<DesignOptionDto | null>(null);
+  const [styleRefId, setStyleRefId] = useState<string | null>(null);
+  // The reference's colours, read server-side so the preview matches the flyer.
+  const [refBrand, setRefBrand] = useState<PreviewContext["brand"] | null>(null);
   const [shape, setShape] = useState<"square" | "story">("square");
   const [fonts, setFonts] = useState(fontsReady());
   useEffect(() => {
@@ -67,6 +73,20 @@ export function IdeaStudio({
   }, []);
 
   const brief = useMemo(() => sketch(text), [text]);
+
+  useEffect(() => {
+    if (!styleRefId) {
+      setRefBrand(null);
+      return;
+    }
+    let live = true;
+    void stylePaletteAction(slug, styleRefId).then((p) => {
+      if (live) setRefBrand(p);
+    });
+    return () => {
+      live = false;
+    };
+  }, [styleRefId, slug]);
 
   const svg = useMemo(() => {
     void fonts;
@@ -80,14 +100,14 @@ export function IdeaStudio({
       cta: context.cta ?? "Order now",
       phone: context.phone,
       address: context.address,
-      brand: context.brand,
+      brand: refBrand ?? context.brand,
       photo: photoId ? `/api/assets/${photoId}` : null,
       watermark: context.watermark ? { ...context.watermark, logoDataUri: null } : null,
     };
     // Before a design is chosen, show the brand's default look so the page
     // isn't empty; once chosen, the preview is the AI's design.
     return design ? renderDesign(design.spec, input) : renderTemplate(defaultLook, input);
-  }, [brief, photoId, shape, context, design, defaultLook, fonts]);
+  }, [brief, photoId, shape, context, design, defaultLook, fonts, refBrand]);
 
   return (
     <div className="grid lg:grid-cols-[1fr_400px] gap-8 items-start">
@@ -126,6 +146,13 @@ export function IdeaStudio({
               platform has an OpenAI key (<code className="font-mono">AI_PROVIDER=openai</code>).
             </p>
           )}
+          <StyleReference
+            slug={slug}
+            refs={styleRefs}
+            selected={styleRefId}
+            onChange={setStyleRefId}
+            aiReady={canGeneratePhotos}
+          />
           <DesignPicker slug={slug} brief={brief} heroAssetId={photoId} selected={design} onSelect={setDesign} />
         </div>
 

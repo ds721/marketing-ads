@@ -66,6 +66,11 @@ export async function submitIdeaAction(
     const asset = await db.asset.findFirst({ where: { id: heroAssetId, tenantId: ctx.tenant.id }, select: { id: true } });
     if (!asset) heroAssetId = null;
   }
+  let styleRefAssetId = String(formData.get("styleRefAssetId") ?? "") || null;
+  if (styleRefAssetId) {
+    const ref = await db.asset.findFirst({ where: { id: styleRefAssetId, tenantId: ctx.tenant.id }, select: { id: true } });
+    if (!ref) styleRefAssetId = null;
+  }
   const designSpec = parseDesignSpec(formData.get("designSpec"));
 
   let result;
@@ -76,6 +81,7 @@ export async function submitIdeaAction(
       text: parsed.data.text,
       templateId,
       heroAssetId,
+      styleRefAssetId,
       designSpec,
     });
   } catch (err) {
@@ -109,6 +115,12 @@ export async function answerIdeaAction(
       userId: ctx.userId,
       text: idea.text,
       extraDetail: answer,
+      // Carry the studio choices forward — answering a question must not cost
+      // the owner the look, photo and reference they already picked.
+      templateId: idea.templateId,
+      heroAssetId: idea.heroAssetId,
+      styleRefAssetId: idea.styleRefAssetId,
+      designSpec: parseDesignSpec(idea.designSpec),
     });
   } catch (err) {
     return { error: friendly(err, "idea.answer", ctx.tenant.id) };
@@ -381,10 +393,12 @@ export async function publishNowAction(slug: string, contentId: string): Promise
 }
 
 
-function parseDesignSpec(raw: FormDataEntryValue | null): DesignSpec | null {
-  if (!raw) return null;
+/** Accepts the JSON string a form posts, or a value already read from the DB. */
+function parseDesignSpec(raw: FormDataEntryValue | unknown): DesignSpec | null {
+  if (raw === null || raw === undefined) return null;
   try {
-    const parsed = designSpecSchema.safeParse(JSON.parse(String(raw)));
+    const value = typeof raw === "string" ? JSON.parse(raw) : raw;
+    const parsed = designSpecSchema.safeParse(value);
     return parsed.success ? parsed.data : null;
   } catch {
     return null;
@@ -435,6 +449,11 @@ export async function changeLookAction(
   if (heroAssetId) {
     const asset = await db.asset.findFirst({ where: { id: heroAssetId, tenantId: ctx.tenant.id }, select: { id: true } });
     if (!asset) heroAssetId = null;
+  }
+  let styleRefAssetId = String(formData.get("styleRefAssetId") ?? "") || null;
+  if (styleRefAssetId) {
+    const ref = await db.asset.findFirst({ where: { id: styleRefAssetId, tenantId: ctx.tenant.id }, select: { id: true } });
+    if (!ref) styleRefAssetId = null;
   }
   const designSpec = parseDesignSpec(formData.get("designSpec"));
 
@@ -548,4 +567,36 @@ export async function deleteCampaignAction(slug: string, campaignId: string): Pr
     revalidatePath(`/app/${slug}/${path}`);
   }
   redirect(`/app/${slug}/campaigns`);
+}
+
+/**
+ * The palette of a design the owner pointed at, for the live preview. Runs the
+ * same extraction the flyer renderer uses, so what they see here is what they
+ * get — no second implementation to drift.
+ */
+export async function stylePaletteAction(
+  slug: string,
+  assetId: string,
+): Promise<{ primary: string; secondary: string; accent: string } | null> {
+  const ctx = await requireTenant(slug, "EDITOR");
+  const asset = await db.asset.findFirst({
+    where: { id: assetId, tenantId: ctx.tenant.id },
+    select: { storageKey: true, kind: true },
+  });
+  if (!asset || asset.kind === "VIDEO") return null;
+
+  try {
+    const { paletteFrom } = await import("@/server/creative/palette");
+    const { getStorageProvider } = await import("@/server/storage");
+    const pal = await paletteFrom(await getStorageProvider().get(asset.storageKey));
+    return { primary: pal.background, secondary: pal.background2, accent: pal.accent };
+  } catch (err) {
+    log.error({
+      operation: "style.palette",
+      tenantId: ctx.tenant.id,
+      status: "error",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
 }

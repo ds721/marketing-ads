@@ -4,6 +4,7 @@ import {
   fitLabel,
   cleanText,
   fitHeadline,
+  fitHeadlineBox,
   textBlock,
   label,
   pill,
@@ -106,16 +107,6 @@ const bold: Template = {
       svg += `<clipPath id="c"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>${coverImage(input.photo, cx - r, cy - r, r * 2, r * 2, "c")}<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#fff" stroke-opacity="0.7" stroke-width="${w * 0.006}"/>`;
     }
 
-    const head = fitHeadline(cleanText(input.headline).toUpperCase(), "condensed", input.photo ? textW * 0.62 : textW, 3, Math.round(w * 0.16), Math.round(w * 0.1));
-    const headTop = Math.round(h * (story ? 0.3 : 0.28));
-    const block = textBlock({ lines: head.lines, x: pad, y: headTop + head.size, size: head.size, font: "condensed", fill: "#fff", lineHeight: 0.95 });
-    svg += block.svg;
-    let y = block.endY + Math.round(h * 0.05);
-
-    if (input.price) {
-      svg += label({ text: input.price, x: pad, y: y + Math.round(w * 0.15), size: Math.round(w * 0.17), font: "display", fill: accent });
-      y += Math.round(w * 0.2);
-    }
     const contactY = h - pad * 0.6;
     const ctaSize = Math.round(w * 0.036);
     const ctaW = input.cta ? measure("display", input.cta, ctaSize) : 0;
@@ -135,6 +126,31 @@ const bold: Template = {
     const stacked = Boolean(input.when) && !(roomy && probe !== null && probe.width + gap + ctaW <= textW);
     const ctaH = input.cta ? Math.round(ctaSize * 1.3) : 0;
     const blockH = (probe?.height ?? ctaH) + (stacked && input.cta ? rowGap + ctaH : 0);
+
+    // Lay the page out from the bottom: the contact line, the when/CTA block
+    // and the price all have fixed heights, so whatever is left is the
+    // headline's — and the headline is sized to fit it.
+    const priceH = input.price ? Math.round(w * 0.2) : 0;
+    const headTop = Math.round(h * (story ? 0.3 : 0.28));
+    const headFloor = contactY - Math.round(w * 0.045) - blockH - priceH - Math.round(h * 0.05);
+    const head = fitHeadlineBox(
+      cleanText(input.headline).toUpperCase(),
+      "condensed",
+      input.photo ? textW * 0.62 : textW,
+      3,
+      Math.round(w * 0.16),
+      Math.round(w * 0.09),
+      Math.max(Math.round(w * 0.12), headFloor - headTop),
+      0.95,
+    );
+    const block = textBlock({ lines: head.lines, x: pad, y: headTop + head.size, size: head.size, font: "condensed", fill: "#fff", lineHeight: 0.95 });
+    svg += block.svg;
+    let y = block.endY + Math.round(h * 0.05);
+
+    if (input.price) {
+      svg += label({ text: input.price, x: pad, y: y + Math.round(w * 0.15), size: Math.round(w * 0.17), font: "display", fill: accent });
+      y += priceH;
+    }
     y = Math.min(y, contactY - blockH - Math.round(w * 0.045));
 
     let x = pad;
@@ -301,12 +317,28 @@ const blob: Template = {
       : `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${primary}"/>`;
     svg += label({ text: input.businessName, x: pad, y: pad + Math.round(w * 0.02), size: Math.round(w * 0.028), font: "display", fill: secondary });
 
-    const head = fitHeadline(cleanText(input.headline), "script", w - pad * 2, 3, Math.round(w * 0.1), Math.round(w * 0.06));
+    // Reserve the bottom of the card before the headline takes any of it:
+    // price sticker, call to action and the contact line each have a height.
+    const contactTop = h - pad * 0.6 - Math.round(w * 0.05);
+    const stickerH = input.price ? Math.round(w * 0.075 * 1.9) + Math.round(h * 0.045) : 0;
+    const ctaLineH = input.cta ? Math.round(w * 0.06) : 0;
+    const whenOnlyH = !input.price && input.when ? Math.round(w * 0.06) : 0;
     // Start below the photo circle so ascenders never touch it.
-    let y = Math.max(h * (story ? 0.5 : 0.52), cy + r + head.size * 1.1);
+    const headTop = Math.max(h * (story ? 0.5 : 0.52), cy + r + Math.round(w * 0.1) * 1.1);
+    const head = fitHeadlineBox(
+      cleanText(input.headline),
+      "script",
+      w - pad * 2,
+      3,
+      Math.round(w * 0.1),
+      Math.round(w * 0.055),
+      Math.max(Math.round(w * 0.1), contactTop - stickerH - ctaLineH - whenOnlyH - Math.round(h * 0.05) - headTop),
+      1.25,
+    );
+    let y = headTop;
     const block = textBlock({ lines: head.lines, x: pad, y, size: head.size, font: "script", fill: secondary, lineHeight: 1.25 });
     svg += block.svg;
-    y = block.endY + Math.round(h * 0.05);
+    y = Math.min(block.endY + Math.round(h * 0.05), contactTop - stickerH - ctaLineH - whenOnlyH);
 
     if (input.price) {
       const sh = Math.round(w * 0.13);
