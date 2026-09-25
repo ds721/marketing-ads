@@ -117,34 +117,36 @@ const bold: Template = {
       y += Math.round(w * 0.2);
     }
     const contactY = h - pad * 0.6;
-    y = Math.min(y, contactY - Math.round(w * 0.11));
-    let x = pad;
     const ctaSize = Math.round(w * 0.036);
     const ctaW = input.cta ? measure("display", input.cta, ctaSize) : 0;
+    const whenSize = Math.round(w * 0.03);
     const gap = Math.round(w * 0.035);
+    const rowGap = Math.round(w * 0.02);
+
+    // Work out the shape of the when/CTA block before placing it: a long date
+    // takes the whole row and drops the call to action beneath it, which makes
+    // the block twice as tall. Measuring first is what keeps that second row
+    // off the phone number at the foot of the flyer.
+    const whenBudget = (stacked: boolean) => (stacked ? textW : textW - ctaW - gap);
+    const probe = input.when
+      ? pill({ x: pad, y: 0, text: input.when, size: whenSize, fill: "#fff", color: secondary, maxWidth: whenBudget(false) })
+      : null;
+    const roomy = textW - ctaW - gap > textW * 0.45;
+    const stacked = Boolean(input.when) && !(roomy && probe !== null && probe.width + gap + ctaW <= textW);
+    const ctaH = input.cta ? Math.round(ctaSize * 1.3) : 0;
+    const blockH = (probe?.height ?? ctaH) + (stacked && input.cta ? rowGap + ctaH : 0);
+    y = Math.min(y, contactY - blockH - Math.round(w * 0.045));
+
+    let x = pad;
     if (input.when) {
-      // Leave room for the CTA beside it; if that squeezes the pill too hard,
-      // the pill keeps the full row and the CTA moves below.
-      const beside = textW - ctaW - gap;
-      const roomy = beside > textW * 0.45;
-      const p = pill({
-        x,
-        y,
-        text: input.when,
-        size: Math.round(w * 0.03),
-        fill: "#fff",
-        color: secondary,
-        maxWidth: roomy ? beside : textW,
-      });
+      const p = pill({ x, y, text: input.when, size: whenSize, fill: "#fff", color: secondary, maxWidth: whenBudget(stacked) });
       svg += p.svg;
-      if (roomy && p.width + gap + ctaW <= textW) {
-        x += p.width + gap;
-      } else {
-        x = pad;
-        y += p.height + Math.round(w * 0.02);
-      }
+      if (stacked) y += p.height + rowGap;
+      else x += p.width + gap;
     }
-    if (input.cta) svg += label({ text: input.cta, x, y: y + Math.round(w * 0.03 * 1.28), size: ctaSize, font: "display", fill: "#fff" });
+    if (input.cta) {
+      svg += label({ text: input.cta, x, y: y + (stacked ? ctaSize : Math.round(whenSize * 1.28)), size: ctaSize, font: "display", fill: "#fff" });
+    }
     svg += contact(input, pad, contactY, Math.round(w * 0.024), "#fff", "start", w * 0.7);
     return svg + close(input, w, h);
   },
