@@ -31,7 +31,7 @@ function friendly(err: unknown, operation: string, tenantId?: string): string {
       return "Making pictures isn't included in the free AI plan — your captions and campaigns still work. Flyers are drawn by Markit instead.";
     }
     if (err.provider === "Gemini" && err.reason === "rate_limited") {
-      return "The free AI plan allows 20 requests a minute and it's busy right now. Wait a minute and try again — nothing is wrong with your account.";
+      return "The free AI plan is used up for today, or Google is busy right now. Try again in a few minutes — nothing is wrong with your account. The free allowance resets daily.";
     }
     return err.reason === "no_credit"
       ? "The AI account is out of credit. Whoever runs this platform needs to top up at platform.openai.com → Billing — nothing to fix on your side."

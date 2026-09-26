@@ -38,15 +38,23 @@ const ENV_KEY: Record<AiTask, string> = {
 const GEMINI_TEXT = process.env.AI_MODEL_GEMINI ?? "gemini-3.8-flash";
 
 /**
- * Gemini's free quota is granted *per model per day*, so one exhausted model
- * is not an exhausted account — the next one in this list still answers. For
- * a shop owner writing a few posts that is the difference between the app
- * working and the app apologising, so the provider walks this chain before it
- * gives up. Order is best-first.
+ * Gemini's free quota is 20 requests per model per day, so one exhausted
+ * model is not an exhausted account — the next one in this list still
+ * answers, and the chain's length is the day's capacity. For a shop owner
+ * writing a few posts that is the difference between the app working and the
+ * app apologising. Order is best-first; every name is verified against the
+ * live model list, since Google retires them quickly.
  */
 export const GEMINI_TEXT_CHAIN: string[] = (
   process.env.AI_MODEL_GEMINI_CHAIN ??
-  [GEMINI_TEXT, "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"].join(",")
+  [
+    GEMINI_TEXT,
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite",
+    "gemini-3.1-flash-lite-preview",
+  ].join(",")
 )
   .split(",")
   .map((m) => m.trim())
