@@ -31,10 +31,47 @@ const ENV_KEY: Record<AiTask, string> = {
   analysis: "AI_MODEL_ANALYSIS",
 };
 
-export function modelFor(task: AiTask): ModelConfig {
-  const base = OPENAI_DEFAULTS[task];
+// Gemini's free tier is what makes this app usable without a card. Google
+// retires model names quickly — gemini-2.0-flash and gemini-2.5-flash are
+// both already gone — so every name here is overridable by env, and the
+// provider reports the retirement message verbatim when one lapses.
+const GEMINI_TEXT = process.env.AI_MODEL_GEMINI ?? "gemini-3.8-flash";
+
+/**
+ * Gemini's free quota is granted *per model per day*, so one exhausted model
+ * is not an exhausted account — the next one in this list still answers. For
+ * a shop owner writing a few posts that is the difference between the app
+ * working and the app apologising, so the provider walks this chain before it
+ * gives up. Order is best-first.
+ */
+export const GEMINI_TEXT_CHAIN: string[] = (
+  process.env.AI_MODEL_GEMINI_CHAIN ??
+  [GEMINI_TEXT, "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"].join(",")
+)
+  .split(",")
+  .map((m) => m.trim())
+  .filter(Boolean)
+  .filter((m, i, a) => a.indexOf(m) === i);
+const GEMINI_DEFAULTS: Record<AiTask, ModelConfig> = {
+  classify: { model: GEMINI_TEXT, temperature: 0, maxTokens: 700 },
+  rewrite: { model: GEMINI_TEXT, temperature: 0.6, maxTokens: 1200 },
+  content: { model: GEMINI_TEXT, temperature: 0.8, maxTokens: 2000 },
+  strategy: { model: GEMINI_TEXT, temperature: 0.7, maxTokens: 4000 },
+  campaign: { model: GEMINI_TEXT, temperature: 0.7, maxTokens: 4000 },
+  analysis: { model: GEMINI_TEXT, temperature: 0.3, maxTokens: 2000 },
+};
+
+export function modelFor(task: AiTask, provider = "openai"): ModelConfig {
+  const base = (provider === "gemini" ? GEMINI_DEFAULTS : OPENAI_DEFAULTS)[task];
   const override = process.env[ENV_KEY[task]];
   return override ? { ...base, model: override } : base;
 }
 
 export const IMAGE_MODEL = process.env.AI_MODEL_IMAGE ?? "gpt-image-1";
+/**
+ * Gemini's image model. Note this is NOT on the free tier — free keys get
+ * `limit: 0` for image generation and the call 429s immediately. It works
+ * once billing is enabled on the Google Cloud project.
+ */
+export const GEMINI_IMAGE_MODEL = process.env.AI_MODEL_IMAGE_GEMINI ?? "gemini-3.1-flash-image";
+export const GEMINI_VISION_MODEL = process.env.AI_MODEL_VISION_GEMINI ?? GEMINI_TEXT;

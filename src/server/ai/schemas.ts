@@ -5,7 +5,7 @@ import { z } from "zod";
 
 export const PROMPT_VERSIONS = {
   ideaClassification: "idea-classify.v1",
-  campaignProposal: "campaign-proposal.v1",
+  campaignProposal: "campaign-proposal.v2",
   monthlyStrategy: "monthly-strategy.v1",
   contentGeneration: "content-gen.v1",
   analyticsInsight: "analytics-insight.v1",
@@ -13,17 +13,39 @@ export const PROMPT_VERSIONS = {
   flyerDesign: "flyer-design.v1",
 } as const;
 
+// Models are inconsistent about the case of enum values — Gemini answers
+// "post" where OpenAI answers "POST", and both are obeying the prompt as they
+// read it. Casing is not a fact worth failing a campaign over, so we normalise
+// it instead of rejecting the whole response (§40 still applies: anything that
+// isn't one of these values is still rejected).
+/**
+ * Matches the model's answer to one of the allowed values, ignoring case and
+ * separators — "post", "POST" and "Post" all mean POST, and "half right"
+ * means "half-right". Anything that matches nothing is still rejected, so
+ * this loosens the spelling without loosening the vocabulary.
+ */
+const looseEnum = <T extends readonly [string, ...string[]]>(values: T) => {
+  const key = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const bySpelling = new Map(values.map((v) => [key(v), v]));
+  return z.preprocess(
+    (v) => (typeof v === "string" ? (bySpelling.get(key(v)) ?? v) : v),
+    z.enum(values),
+  ) as unknown as z.ZodType<T[number]>;
+};
+const upperEnum = looseEnum;
+const lowerEnum = looseEnum;
+
 export const PLATFORM_IDS = ["instagram", "facebook", "whatsapp", "google_business", "linkedin"] as const;
-export const platformId = z.enum(PLATFORM_IDS);
+export const platformId = lowerEnum(PLATFORM_IDS);
 
 // ── Idea classification (§14) ─────────────────────────────────────────────
 
 export const ideaClassificationSchema = z.object({
-  category: z.enum([
+  category: upperEnum([
     "NEW_PRODUCT", "NEW_SERVICE", "PROMOTION", "DISCOUNT", "EVENT",
     "ANNOUNCEMENT", "SEASONAL_CAMPAIGN", "INVENTORY_PROMOTION",
     "BRAND_STORY", "CUSTOMER_STORY", "BUSINESS_UPDATE", "OTHER",
-  ]),
+  ] as const),
   summary: z.string().min(1).max(300),
   // Commercial facts extracted verbatim from the owner's words — the AI must
   // NOT invent any of these; absent = null (§42).
@@ -46,7 +68,7 @@ export type IdeaClassification = z.infer<typeof ideaClassificationSchema>;
 
 export const campaignContentItemSchema = z.object({
   platform: platformId,
-  contentType: z.enum(["POST", "STORY", "FLYER", "MESSAGE", "UPDATE", "PROMOTION"]),
+  contentType: upperEnum(["POST", "STORY", "FLYER", "MESSAGE", "UPDATE", "PROMOTION"] as const),
   title: z.string().min(1).max(160),
   hook: z.string().max(300).nullable(),
   body: z.string().min(1).max(3000),
@@ -72,7 +94,7 @@ export type CampaignProposal = z.infer<typeof campaignProposalSchema>;
 
 export const strategyWeekItemSchema = z.object({
   dayOfWeek: z.number().int().min(0).max(6), // 0 = Monday
-  contentType: z.enum(["POST", "STORY", "FLYER", "UPDATE", "PROMOTION"]),
+  contentType: upperEnum(["POST", "STORY", "FLYER", "UPDATE", "PROMOTION"] as const),
   platform: platformId,
   topic: z.string().min(1).max(200),
   angle: z.string().max(300).nullable(),
@@ -130,7 +152,7 @@ export const videoScriptSchema = z.object({
   cta: z.string().max(160).nullable(),
   hashtags: z.array(z.string().max(60)).max(12),
   durationSec: z.number().int().min(5).max(90),
-  format: z.enum(["reel", "story", "short"]),
+  format: lowerEnum(["reel", "story", "short"] as const),
 });
 
 export type VideoScriptOutput = z.infer<typeof videoScriptSchema>;
@@ -144,7 +166,7 @@ const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, "hex colour");
 const unit = z.number().min(0).max(1);
 
 export const designShapeSchema = z.object({
-  type: z.enum(["circle", "blob", "ring", "stripe", "wave", "arc"]),
+  type: lowerEnum(["circle", "blob", "ring", "stripe", "wave", "arc"] as const),
   x: unit,
   y: unit,
   size: z.number().min(0.05).max(1.2),
@@ -164,27 +186,27 @@ export const designSpecSchema = z.object({
     accent2: hex,
   }),
   background: z.object({
-    kind: z.enum(["solid", "gradient", "photo"]),
+    kind: lowerEnum(["solid", "gradient", "photo"] as const),
     angle: z.number().min(0).max(360).optional(),
     /** Darkening over a photo so text reads: 0 none … 1 black. */
     overlay: unit.optional(),
   }),
   shapes: z.array(designShapeSchema).max(6),
   typography: z.object({
-    headline: z.enum(["display", "condensed", "serif", "script", "hand", "light"]),
-    body: z.enum(["body", "display", "light"]),
-    headlineCase: z.enum(["upper", "title"]),
+    headline: lowerEnum(["display", "condensed", "serif", "script", "hand", "light"] as const),
+    body: lowerEnum(["body", "display", "light"] as const),
+    headlineCase: lowerEnum(["upper", "title"] as const),
     /** 1 = normal; 0.7 quieter; 1.3 louder. */
     headlineScale: z.number().min(0.6).max(1.4),
   }),
   layout: z.object({
-    align: z.enum(["left", "center"]),
+    align: lowerEnum(["left", "center"] as const),
     /** Where the text stack sits vertically. */
-    stack: z.enum(["top", "middle", "bottom"]),
-    photo: z.enum(["full", "circle", "frame", "half-right", "half-top", "none"]),
-    price: z.enum(["big", "sticker", "pill", "tag"]),
+    stack: lowerEnum(["top", "middle", "bottom"] as const),
+    photo: lowerEnum(["full", "circle", "frame", "half-right", "half-top", "none"] as const),
+    price: lowerEnum(["big", "sticker", "pill", "tag"] as const),
   }),
-  decor: z.enum(["auto", "none"]),
+  decor: lowerEnum(["auto", "none"] as const),
   /** Optional: a scene for an AI background image. Must describe no text. */
   backgroundPrompt: z.string().max(300).nullable(),
 });
@@ -204,7 +226,7 @@ export const insightSchema = z.object({
       z.object({
         title: z.string().min(1).max(160),
         body: z.string().min(1).max(600),
-        kind: z.enum(["insight", "recommendation"]),
+        kind: lowerEnum(["insight", "recommendation"] as const),
       }),
     )
     .min(1)

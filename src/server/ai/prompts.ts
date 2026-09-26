@@ -71,7 +71,28 @@ Respect the posting rules: at most ${ctx.rules.maxPostsPerWeek} posts a week${ct
 ${brandVoice(ctx)}
 ${GUARDRAILS}
 
-Return JSON: { "name", "objective", "audience", "durationDays", "channels": string[], "rationale", "contentItems": [{ "platform", "contentType", "title", "hook", "body", "cta", "hashtags": string[], "dayOffset", "timeOfDay" }] }`,
+Return JSON in exactly this shape. The allowed values are listed — do not invent others:
+{
+  "name": string (max 120),
+  "objective": string (max 300),
+  "audience": string (max 300),
+  "durationDays": integer 1-60,
+  "channels": array of ${JSON.stringify(channels)},
+  "rationale": string (max 600),
+  "contentItems": [                      // between 1 and 12 items, never empty
+    {
+      "platform": one of ${JSON.stringify(channels)},
+      "contentType": one of ["POST","STORY","FLYER","MESSAGE","UPDATE","PROMOTION"],
+      "title": string (max 160),
+      "hook": string (max 300) or null,
+      "body": string (max 3000),
+      "cta": string (max 160) or null,
+      "hashtags": array of up to 12 strings, each without the # character,
+      "dayOffset": integer 0-30,         // days after the campaign starts
+      "timeOfDay": "HH:MM" 24-hour, e.g. "18:00"
+    }
+  ]
+}`,
     prompt: `The owner said: "${ideaText}"
 
 LOCKED FACTS (use verbatim; null means the owner did not say it — do not invent it):

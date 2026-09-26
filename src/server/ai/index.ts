@@ -1,10 +1,10 @@
 import type { AIProvider } from "@/server/ai/types";
 import { OpenAIProvider } from "@/server/ai/providers/openai";
 import { MockAIProvider } from "@/server/ai/providers/mock";
+import { GeminiProvider } from "@/server/ai/providers/gemini";
 
 // ── AI router (§6) ────────────────────────────────────────────────────────
 // Callers ask for "the provider"; which one they get is config, not code.
-// Gemini slots in here without touching a single service.
 
 let cached: AIProvider | null = null;
 
@@ -15,11 +15,15 @@ export function getAIProvider(): AIProvider {
     case "openai":
       cached = new OpenAIProvider();
       break;
+    case "gemini":
+    case "google":
+      cached = new GeminiProvider();
+      break;
     case "mock":
       cached = new MockAIProvider();
       break;
     default:
-      throw new Error(`Unknown AI_PROVIDER "${configured}". Use "openai" or "mock".`);
+      throw new Error(`Unknown AI_PROVIDER "${configured}". Use "gemini", "openai" or "mock".`);
   }
   return cached;
 }
@@ -31,5 +35,10 @@ export function isMockAi(): boolean {
 
 /** Image generation needs a configured provider; mock returns a placeholder. */
 export function isImageGenerationConfigured(): boolean {
-  return !isMockAi() && Boolean(process.env.OPENAI_API_KEY);
+  if (isMockAi()) return false;
+  const provider = (process.env.AI_PROVIDER ?? "mock").toLowerCase();
+  if (provider === "gemini" || provider === "google") {
+    return Boolean(process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY);
+  }
+  return Boolean(process.env.OPENAI_API_KEY);
 }

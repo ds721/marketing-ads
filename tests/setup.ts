@@ -6,5 +6,7 @@ config({ quiet: true });
 // every run.
 process.env.AI_PROVIDER = "mock";
 delete process.env.OPENAI_API_KEY;
+delete process.env.GEMINI_API_KEY;
+delete process.env.GOOGLE_API_KEY;
 
 process.env.APP_ENCRYPTION_KEY ??= "0".repeat(64);
